@@ -1,0 +1,264 @@
+\documentclass[12pt,a4paper]{ctexart}
+
+% 页面设置
+\usepackage{geometry}
+\geometry{left=2.5cm,right=2.5cm,top=2.5cm,bottom=2.5cm}
+
+% 数学
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{mathtools}
+
+% 表格
+\usepackage{booktabs}
+\usepackage{array}
+
+% 列表
+\usepackage{enumitem}
+\setlist{nosep}
+
+% 颜色与链接
+\usepackage{xcolor}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue}
+
+% 代码与等宽
+\usepackage{verbatim}
+
+% 标题格式
+\usepackage{titlesec}
+\titleformat{\section}{\Large\bfseries}{\thesection}{1em}{}
+\titleformat{\subsection}{\large\bfseries}{\thesubsection}{1em}{}
+
+% 摘要环境重定义（论文信息框）
+\usepackage{tcolorbox}
+\tcbuselibrary{skins,breakable}
+
+\newtcolorbox{paperinfo}{
+  colback=gray!5,
+  colframe=gray!50,
+  arc=2pt,
+  boxrule=0.5pt,
+  left=8pt,right=8pt,top=6pt,bottom=6pt,
+  fonttitle=\bfseries,
+  title={论文信息}
+}
+
+% 定理环境
+\usepackage{amsthm}
+\theoremstyle{remark}
+\newtheorem*{remark}{注}
+
+\title{\textbf{《SQIsign2D$^2$》阅读报告}\\[0.3em]
+\large 基于一维光滑同源的 SQIsign2D 优化变种}
+\author{PB24000153\quad 李智涵}
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{paperinfo}
+\begin{itemize}[leftmargin=1.5em]
+  \item \textbf{作者：}Zheng Xu, Kaizhan Lin, Chang-An Zhao, Yi Ouyang
+  \item \textbf{会议：}ASIACRYPT 2025, Part IV, LNCS, pp.~341--371. Springer, Singapore, December~2025
+  \item \textbf{预印本：}IACR Cryptology ePrint Archive, Report 2025/920, 2025
+  \item \textbf{标题：}SQIsign2D$^2$: New SQIsign2D Variant by Leveraging Power Smooth Isogenies in Dimension One
+\end{itemize}
+\end{paperinfo}
+
+\section{引言}
+
+\subsection{研究背景}
+
+2024年8月，NIST 正式发布了首批后量子密码标准，密码学由此进入了``后量子时代''。当前主流的后量子方案主要包括基于格、基于哈希、基于编码以及基于同源等几类。其中，\textbf{基于同源的密码学（Isogeny-based Cryptography）}由于数学结构独特，近年来受到了越来越多的关注。
+
+同源密码学的一个重要优势在于：截至目前，人们尚未找到能在多项式时间内求解超奇异椭圆曲线同源问题的量子算法。相比之下，格密码虽然也能抵抗已知的量子攻击，但其安全性通常需要依赖一些启发式假设；而同源问题的数学基础更为经典，与椭圆曲线密码学（ECC）联系紧密，同时又能天然抵抗 Shor 算法的攻击。
+
+\subsection{SQIsign 与同源数字签名}
+
+\textbf{SQIsign} 由 De Feo 等人于 2020 年提出，是目前唯一进入 NIST 第二轮评估的同源签名方案。其最突出的优点是签名长度极短（约 200 字节，与 ECC 相当），但计算效率较低——签名和验证过程均需进行复杂的``理想--同源转换''。
+
+为了解决这一问题，近年来陆续出现了 SQIsignHD、SQIsign2D-West/East 等改进方案，而本文介绍的 \textbf{SQIsign2D$^2$} 则是在此基础上的进一步优化。
+
+\subsection{本文核心贡献}
+
+SQIsign2D$^2$ 通过重新设计素数参数与改进核心算法，实现了目前最快的 SQIsign2D 变体。在 NIST-I 安全级别下，与 SQIsign2D-East 相比，性能提升如下：
+
+\begin{table}[h]
+\centering
+\begin{tabular}{ccc}
+\toprule
+操作阶段 & SQIsign2D-East & SQIsign2D$^2$（本文） \\
+\midrule
+密钥生成 & 560 ms & 213 ms（快 2.6 倍） \\
+签名 & 1263 ms & 587 ms（快 2.1 倍） \\
+验证 & 296 ms & 247 ms（快 1.2 倍） \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+其核心思路是：利用\textbf{一维光滑同源}（3 的幂次）来降低二维同源的计算开销，从而在不牺牲安全性的前提下提高效率。
+
+\section{技术背景}
+
+\subsection{椭圆曲线同源基础}
+
+同源（Isogeny）是椭圆曲线之间保持群结构的特殊映射，将一条曲线映到另一条曲线。对于超奇异椭圆曲线，其自同态环与四元数代数中的最大序之间存在一一对应关系，即著名的 \textbf{Deuring 对应}。
+
+同源密码学中的主要计算瓶颈是\textbf{理想--同源转换}：需要将四元数理想中的元素显式计算为曲线上的有理映射。这正是 SQIsign 家族效率低下的根本原因。
+
+\subsection{高维同源与 Kani 引理}
+
+\textbf{Kani 引理}是近年来同源密码学中的重要工具。它允许我们通过构造二维同源（即阿贝尔簇之间的同源）来分解和计算一维同源。SQIsign2D 家族的签名方案均基于这一思想：借助二维同源计算，回避直接进行代价高昂的理想--同源转换。
+
+\subsection{SQIsign2D-East 简介}
+
+作为对比基准，SQIsign2D-East 采用形如 $p = 2^{a+b} \cdot f - 1$ 的素数，其中 $f$ 为小因子。这种参数设置使得 2 的幂次挠子群可以被高效利用，但核心计算仍依赖二维 $(2^e, 2^e)$-同源，成本较高。
+
+\section{SQIsign2D$^2$ 的核心创新}
+
+\subsection{参数重构：$p = C \cdot D - 1$}
+
+本文的关键创新在于改变了素数的选取方式。传统方案通常采用 $p = f \cdot 2^a - 1$，仅利用 2 的幂次；而 SQIsign2D$^2$ 使用的是：
+\begin{equation}
+p = 2^{e_2} \cdot 3^{e_3} - 1
+\end{equation}
+其中 $C = 3^{e_3} \approx D = 2^{e_2} \approx \sqrt{p}$。这一设计带来了三个好处：
+\begin{enumerate}
+  \item $E_0[C]$ 和 $E_0[D]$ 均为有理挠子群（定义在基域上）；
+  \item $C$-同源和 $D$-同源都可以用 V\'{e}lu 公式高效计算，且都是一维的；
+  \item 二维同源的度数需求从 $\sim p$ 降至 $\sim \sqrt{p}$，显著减少了计算量。
+\end{enumerate}
+
+\subsection{算法一：ImRanIso（改进随机同源生成）}
+
+该算法用于密钥生成。其思路是：先构造一个度数为 $d(D/D' - d) \cdot C \cdot D'$ 的内自同态，再通过二维同源分解得到目标 $d$-同源。相比前人的工作，该算法巧妙地利用 $CD'$-同源（其中 $D' = 2^{\lfloor e_2/2 \rfloor} \approx p^{1/4}$）来降低二维同源的度数需求。
+
+直观地说，这一策略以适当增加一维同源的计算量（约 $\frac{3}{4} \log_2 p$）为代价，将二维同源的复杂度从约 $\log_2 p$ 降至约 $\frac{1}{2} \log_2 p$，从而在整体上实现了加速。
+
+\subsection{算法二：GenImRanIso（广义改进随机同源）}
+
+该算法用于签名阶段生成辅助同源。此时的困难在于：签名从曲线 $E_A$ 出发，其自同态环未知。本文的解决方法是用 \textbf{Eichler 序}来构造所需的内自同态，而非使用完整的最大序。
+
+这样做的好处是：完全避免了 East 方案中需要的 $(2^e, 2^e)$-二维同源，转而使用更易计算的 $(D,D)$-二维同源。
+
+\subsection{响应同源条件的简化}
+
+East 方案要求响应同源的度数 $q$ 满足 $(2^a, 2^b)$-nice 的复杂条件。本文将其简化为仅需 \textbf{D-adequate}：$q$ 为奇数、$q < D$、且 $3 \nmid q$。简化后采样成功率从约 $1/8$ 提升至约 $1/4$。
+
+\section{SQIsign2D$^2$ 协议流程}
+
+SQIsign2D$^2$ 是一个 $\Sigma$-协议（识别协议），可通过 Fiat--Shamir 变换转换为数字签名方案。
+
+\subsection{参数设置}
+
+以 NIST-I 安全级别为例，选取 $p = 2^{131} \cdot 3^{78} - 1$，这是一个约 256 比特的素数。公钥约 64 字节，签名约 154 字节（压缩后）。
+
+\subsection{密钥生成}
+
+\begin{enumerate}
+  \item 选取随机素数 $N_\tau < p^{1/4}$，满足 Legendre 符号 $\bigl(\frac{3}{N_\tau}\bigr) = -1$（用于抵抗密钥恢复攻击）；
+  \item 使用 ImRanIso 算法生成 $N_\tau$-同源 $\tau: E_0 \to E_A$；
+  \item 公钥为曲线 $E_A$，私钥包含同源 $\tau$ 的信息。
+\end{enumerate}
+
+\subsection{承诺--挑战--响应}
+
+\textbf{承诺：}证明者使用 ImRanIso 生成随机同源 $\psi: E_0 \to E_1$，发送承诺曲线 $E_1$。
+
+\textbf{挑战：}验证者发送随机点 $K_{\text{cha}} \in E_1[C]$ 作为挑战。
+
+\textbf{响应：}证明者计算挑战同源 $\varphi: E_1 \to E_2$，然后构造响应同源 $\sigma: E_A \to E_2$。利用 GenImRanIso 生成辅助同源，最终返回压缩后的响应。
+
+\subsection{验证}
+
+验证者通过计算 $(D,D)$-二维同源来验证响应的有效性。若同源分解后得到的 $\sigma$ 满足条件，则接受。
+
+\section{安全性分析}
+
+\subsection{特殊可靠性}
+
+若证明者能对两个不同的挑战生成有效响应，则可提取出 $E_A$ 的非平凡自同态，进而可能恢复密钥。这保证了协议的基本可靠性。
+
+\subsection{零知识性}
+
+在随机预言机模型下，协议满足特殊诚实验证者零知识。核心假设是：ImRanIso 输出的承诺曲线与随机超奇异曲线计算不可区分。
+
+\subsection{承诺采样的强化}
+
+针对上述启发式假设，论文提出了两种强化方案：
+\begin{itemize}
+  \item \textbf{Double Path 技术：}将承诺同源度数提升至 $\sim p$，增强随机性；
+  \item \textbf{$(3,3)$-同源适配：}直接计算 $(CD, CD)$-二维同源。
+\end{itemize}
+
+\section{性能评估与对比}
+
+实验在 Intel Core i9-12900K 上使用 Julia 实现。核心结果如下：
+\begin{itemize}
+  \item SQIsign2D$^2$ 用一维 3-同源替代了大量二维 $(2,2)$-同源，这是效率提升的主要来源；
+  \item 密钥生成阶段，$(2,2)$-同源的计算步数从 253 步降至 66 步；
+  \item 签名阶段，$(2,2)$-同源从 641 步降至 262 步。
+\end{itemize}
+
+与同期工作 SQIsign2DPush 相比，本文方案在承诺生成阶段依赖的安全性假设稍强，但速度更快。与 PRISM-sig 相比，验证阶段也更快。
+
+\section{个人思考与展望}
+
+\subsection{关于量子安全性的理解}
+
+在学习量子计算的过程中，我对同源密码学的量子安全性产生了一些兴趣。Shor 算法能够高效破解 RSA 和 ECC，根本原因在于它们的安全基础是\textbf{阿贝尔群上的隐藏子群问题（HSP）}，而量子傅里叶变换恰好能够高效处理这类结构。然而，超奇异同源问题的代数结构是\textbf{非阿贝尔的}——具体而言，是四元数代数的理想类群——截至目前，人们还没有找到有效的量子算法能够在其上获得类似的加速。
+
+本文的优化策略恰好利用了这一特点：它通过增加一维光滑同源的使用来降低对二维同源的依赖。一维光滑同源的经典计算已经十分高效（V\'{e}lu 公式），量子算法在此并无明显优势；而二维同源即使对量子计算机而言也仍然是难题。因此，这种``用经典易算的问题替代经典难算的问题''的降维思路，不仅没有引入新的量子攻击面，还提升了经典计算效率，这一点在同源密码学中是较为难得的。
+
+\subsection{对论文的评价}
+
+\textbf{优点：}
+\begin{enumerate}
+  \item \textbf{问题定位准确。}作者清晰地识别出二维同源是效率瓶颈，并围绕这一点进行了参数和算法的双重优化，而不是分散地进行局部调优。
+  \item \textbf{实验比较扎实。}论文提供了 Julia 语言的完整实现，实验数据较为充分。
+  \item \textbf{理论与实现兼顾。}虽然为了效率做了一些安全性假设上的让步，但整体上是可控的。
+\end{enumerate}
+
+\textbf{不足之处：}
+\begin{enumerate}
+  \item 承诺生成的随机性假设目前还只是一个启发式，缺乏严格证明。虽然论文给出了强化方案，但使用后会增加额外的开销。
+  \item 即使经过优化，签名时间仍为 587 ms，与 NIST 标准的 ML-DSA（不到 1 ms）相比仍然慢了两个数量级以上。当然，签名长度的优势非常明显（154 B vs 2420 B），属于典型的``时间换空间''。
+\end{enumerate}
+
+\subsection{未来展望}
+
+\textbf{短期}（1--2 年）：
+\begin{itemize}
+  \item 进一步优化 $(3,3)$-同源的实现，使安全强化方案更加实用；
+  \item 探索 GPU 或 FPGA 加速的可能性，特别是 KaniCod 算法的并行化。
+\end{itemize}
+
+\textbf{中期}（3--5 年）：
+\begin{itemize}
+  \item 研究同源密码与格密码等其他后量子方案的混合协议，实现双重保护；
+  \item 后量子 TLS/SSH 的实际部署与工程优化。
+\end{itemize}
+
+\textbf{长期}（5 年以上）：
+\begin{itemize}
+  \item 当容错量子计算真正实现时，同源密码是否仍然安全？
+  \item 这可能需要量子复杂性理论的突破，特别是\textbf{非阿贝尔隐藏子群问题}的量子难度能否被严格证明。
+\end{itemize}
+
+\section{总结}
+
+SQIsign2D$^2$ 通过参数重构（$p = 2^{e_2} \cdot 3^{e_3} - 1$）与算法创新（ImRanIso、GenImRanIso），将 SQIsign2D 家族的效率提升到了新的水平。用一维光滑同源替代高维同源计算这一核心思路，不仅具有直接的工程价值，也为后量子密码学中的``经典--量子''资源权衡提供了一种新的视角。
+
+本文给我的一个重要启示是：\textbf{量子安全不等于量子低效}。通过精细的算法设计，保持抗量子安全性与实现足够快的计算速度，这两者并不矛盾。
+
+\begin{thebibliography}{9}
+\bibitem{nist} NIST. Post-Quantum Cryptography Standardization. 2024.
+\bibitem{sqisign} De Feo L, et al. SQIsign: Compact Post-Quantum Signatures from Quaternions and Isogenies. ASIACRYPT 2020.
+\bibitem{sqisignhd} Dartois P, et al. SQIsignHD: New Dimensions in Cryptography. EUROCRYPT 2024.
+\bibitem{sqisign2deast} Nakagawa K, et al. SQIsign2D-East: A New Signature Scheme Using 2-Dimensional Isogenies. ASIACRYPT 2024.
+\bibitem{sqisign2d2} Xu Z, Lin K, Zhao C A, Ouyang Y. SQIsign2D$^2$: New SQIsign2D Variant by Leveraging Power Smooth Isogenies in Dimension One. ASIACRYPT 2025, Part IV, LNCS, pp.~341--371. Springer, Singapore, 2025.
+\bibitem{breaking} Castryck W, et al. Breaking and Repairing SQIsign2D-East. ePrint 2024/1453.
+\bibitem{kani} Kani E. The number of curves of genus two with elliptic differentials. J.~Reine Angew. Math. 1997.
+\end{thebibliography}
+
+\end{document}
