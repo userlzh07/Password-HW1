@@ -1,0 +1,1752 @@
+SQIsign2D2: New SQIsign2D Variant by
+Leveraging Power Smooth Isogenies in
+Dimension One
+Zheng Xu1[0000−0002−5671−7452], Kaizhan LinB2[0000−0001−8577−2509], Chang-An
+Zhao3,4[0000−0002−1792−0589], and Yi Ouyang1,5[0000−0002−0993−3689]
+1 Hefei National Laboratory, University of Science and Technology of China, Hefei,
+China
+xuzheng1@mail.ustc.edu.cn
+yiouyang@ustc.edu.cn
+2 College of Computer Science and Artificial Intelligence, Fudan University,
+Shanghai, China
+linkzh@fudan.edu.cn
+3 School of Mathematics, Sun Yat-sen University, Guangzhou, China
+zhaochan3@mail.sysu.edu.cn
+4 Guangdong Key Laboratory of Information Security, Guangzhou, China
+5 School of Mathematical Sciences, University of Science and Technology of China,
+Hefei, China
+Abstract. In this paper, we propose SQIsign2D2, a novel digital sig-
+nature scheme within the SQIsign2D family. Unlike other SQIsign2D
+variants, SQIsign2D2 employs the prime p = CD −1 as the field char-
+acteristic, where D = 2e2, C = 3e3 and C ≈D ≈√p. By leveraging
+accessible C-isogenies, SQIsign2D2 significantly reduces the degree re-
+quirements for two-dimensional isogeny computations, thereby lowering
+the overall computational overhead compared to other SQIsign2D vari-
+ants.
+We also provide a proof-of-concept implementation of SQIsign2D2, and
+give an eﬀiciency comparison between SQIsign2D2 and other SQIsign2D
+variants. In particular, the experimental results demonstrate that the
+key generation and signing phases of SQIsign2D2 are more than twice
+as fast as those of SQIsign2D-East at the NIST-I security level, respec-
+tively. Additionally, the verification performance in SQIsign2D2 exhibits
+marginally improved eﬀiciency.
+Keywords: SQIsign · Post-quantum cryptography · Isogeny · Sig-
+nature
+1
+Introduction
+Isogeny-based cryptography constitutes a significant part of post-quantum cryp-
+tography. With the breaking of SIDH and SIKE [22,3,12,25,32], isogeny-based
+
+cryptography has been compelled to seek new directions. In response to these at-
+tacks, several new SIDH-like schemes are proposed, such as M-SIDH [21] and bin-
+SIDH [7]. Basso et al. developed a trapdoor mechanism and proposed FESTA [9],
+an eﬀicient public-key encryption protocol, by using the techniques developed in
+the SIDH attacks.
+Despite the vulnerabilities in SIDH, certain isogeny-based protocols remain
+secure. Notably, in 2020 De Feo et al. [17] proposed SQIsign, a novel isogeny-
+based digital signature scheme, which has emerged as one of the most promising
+candidates and is currently under consideration in the NIST PQC standardiza-
+tion process [1].
+SQIsign is highly attractive due to its compact signature size. However, this
+advantage comes at the cost of relatively low computational eﬀiciency compared
+to other signatures, primarily because of the expensive isogeny computations.
+To address this issue, several techniques [18,24] have been proposed to improve
+the SQIsign implementation, but the ideal-to-isogeny translation remains the
+eﬀiciency bottleneck. Recently, Onuki and Nakagawa [30] further optimized the
+ideal-to-isogeny translation in SQIsign by utilizing isogenies in dimension two.
+On the other hand, novel variants of SQIsign have been proposed to cir-
+cumvent the expensive ideal-to-isogeny translation. In 2023, Dartois, Leroux,
+Robert and Wesolowski proposed SQIsignHD [15], which takes advantage of
+high-dimensional isogenies during the verification process to recover the response
+isogeny. Instead of translating the response ideal into an isogeny, the prover sim-
+ply provides the response isogeny evaluations on torsion points, thereby reducing
+the computational complexity of the signing phase. Moreover, SQIsign2D-West,
+SQIsign2D-East and SQIPrime were respectively presented by Basso et al. [6],
+Nakagawa et al. [29], Duparc and Fouotsa [19]. These protocols employ the con-
+struction of auxiliary isogenies to compute two-dimensional isogenies instead of
+the four-dimensional isogenies required in SQIsignHD, thus improving the overall
+computational eﬀiciency.
+Motivation & Contribution. Currently, all the SQIsign2D variants use the
+prime p = f · D −1 as the field characteristic, where f is a small cofactor and
+D is a power of two. The specific setting enables the eﬀicient generation of non-
+smooth isogenies by leveraging accessible (D, D)-isogenies. However, compared
+to isogeny computations in dimension one, two-dimensional isogeny computa-
+tions are significantly more expensive and constitute the main eﬀiciency bottle-
+necks of the SQIsign2D variants.
+In this paper, we set p = CD−1 to be the field characteristic, where D = 2e2,
+C = 3e3, D′ = 2• and C ≈D ≈√p, D′ ≈p1/4. Under this parameter set-
+ting, while eﬀicient computation of (2•, 2•)-isogenies with chain lengths ≈p is
+infeasible, isogenies in dimension one with degree coprime to 2 become acces-
+sible. Leveraging this observation, we propose an eﬀicient algorithm, abbrevi-
+ated as ImRanIso, that can be used to generate a non-smooth isogeny start-
+ing from E0. ImRanIso adapts a CD′-isogeny to reduce the degree require-
+ment for two-dimensional isogenies. Furthermore, we propose GenImRanIso,
+an algorithm designed to eﬀiciently generate non-smooth isogenies from a curve
+2
+
+EA. GenImRanIso exploits the accessible C-isogenies to reduce the degree re-
+quirements for two-dimensional isogenies. We emphasize that both algorithms
+successfully reduce the degree of the two-dimensional isogenies to a magnitude
+comparable to that of non-smooth isogenies in dimension one, and thus they are
+more eﬀicient compared to other algorithms in the literature.
+Building on these algorithms, we propose SQIsign2D2, an eﬀicient isogeny-
+based signature scheme6. Unlike other SQIsign2D variants in the literature, our
+protocol takes the prime p = 2e23e3 −1 as the field characteristic. The security
+analysis of SQIsign2D2 parallels that of SQIsign2D-East. In particular, we pro-
+vide two alternative approaches to strengthen the plausibility of the assumption
+that the commitment curve is computationally indistinguishable from an elliptic
+curve chosen uniformly at random in the supersingular isogeny graph.
+We give an eﬀiciency comparison between SQIsign2D2 and other SQIsign2D
+variants, demonstrating that SQIsign2D2 is the fastest SQIsign2D variant to
+date. We also provide a proof-of-concept implementation in Julia. The experi-
+mental results show that the key generation and signing phases of SQIsign2D2
+are more than twice as fast as those of SQIsign2D-East, respectively.
+Related Work. Recently, Basso et al. [5] proposed a new signature scheme called
+PRISM-sig. PRISM-sig offers a faster signing time compared to SQIsign2D-West
+and SQIsign2D-East, while the verification is slower. Based on our cost estimates,
+we expect that SQIsign2D2 is still more eﬀicient than PRISM-sig.
+Very recently, Nakagawa and Onuki proposed SQIsign2DPush [28], a new
+variant of SQIsign. We note that their work and ours are independent. While
+SQIsign2D2 operates under stronger security assumptions for the commitment
+generation than SQIsign2DPush, it demonstrates greater eﬀiciency. Further com-
+parisons are left as future work.
+Organization. The rest of this paper is organized as follows. Section 2 provides
+the necessary preliminaries, including isogenies, Deuring correspondence, etc. We
+also introduce the SQIsign2D family by taking SQIsign2D-East as an instance.
+Before introducing SQIsign2D2 in Section 4, we propose two new algorithms as
+the building blocks in Section 3. Section 5 analyzes the security of SQIsign2D2,
+while Section 6 presents an eﬀiciency comparison between SQIsign2D2 and other
+SQIsign2D variants. Finally, we conclude in Section 7.
+2
+Notations and Preliminaries
+In this section, we present the necessary background, including isogenies, ideals,
+the Deuring correspondence, and isogeny computations in dimension two. For
+more detail, we refer to [34,26,36]. We also provide a description of SQIsign2D-
+East [29].
+6 The notation ”2D2” comes from 2D2 = 2D × 1D, indicating that the signature
+scheme is a fast SQIsign2D variant which benefits from isogenies in dimension one.
+3
+
+2.1
+Basic knowledge
+Isogenies. An isogeny φ is a non-constant morphism between elliptic curves. An
+isogeny φ is separable if # ker(φ) = deg(φ). We abbreviate a separable isogeny
+of degree n as an n-isogeny. One can compute a separable isogeny by Vélu’s
+formula [35,10]. Given an n-isogeny φ : E1 →E2, its dual isogeny is denoted by
+ˆφ, satisfying that ˆφ ◦φ = φ ◦ˆφ = [n]. If the kernel of φ is a cyclic group, we call
+the isogeny φ cyclic. Moreover, if φ is a cyclic isogeny with kernel ⟨P⟩for some
+P in E1 of order n, then the kernel of ˆφ equals to ⟨φ(Q)⟩, where Q is a rational
+point such that ⟨P, Q⟩= E1[n].
+Endomorphism rings. An endomorphism is either the zero map [0] or an
+isogeny from E to itself. An endomorphism ring of E, denoted by End(E), is
+the ring formed by all endomorphisms of E under addition and composition.
+Let p be a prime with p ≡3 (mod 4). A quaternion algebra ramified at p and
+∞is given by Bp,∞= Q + Qi + Qj + Qk, where i2 = −1, j2 = −p, k = ij =
+−ji. Supersingular elliptic curves are a special type of elliptic curves over finite
+fields, whose endomorphism rings are maximal orders in a quaternion algebra.
+Given a fractional ideal I of maximal order O, the left order of I is defined
+as OL(I) = {α ∈Bp,∞| αI ⊆I}, and the right order of I is defined as
+OR(I) = {α ∈Bp,∞| Iα ⊆I}. It should be noted that both OL(I) and OR(I)
+are maximal orders in Bp,∞.
+Given α = a+bi+cj +dk ∈Bp,∞, define its conjugate as ¯α = a−bi−cj −dk.
+The reduced trace and reduced norm of α are defined as Trd(α) = α + ¯α and
+Nrd(α) = α¯α, respectively. Similarly, given a left ideal I of a maximal order in
+Bp,∞, the conjugate of I, denoted by ¯I, is defined as the set ¯I = {¯α | α ∈I}.
+The reduced norm of left ideal I is defined as Nrd(I) = gcd({Nrd(α)|α ∈I}).
+We have I ¯I = Nrd(I)OL(I), ¯II = Nrd(I)OR(I). We say two left ideals I, J are
+equivalent if there exists α ∈B∗
+p,∞such that I = Jα, and use the notation I ∼J
+to represent equivalence.
+Deuring correspondence. The Deuring correspondence establishes a one-to-
+one correspondence between isogeny classes of elliptic curves and ideal classes.
+Let E1 be a supersingular elliptic curve, End(E1) ∼= O be the endomorphism
+ring of E1 and φ : E1 →E2 be an isogeny. Then the ideal Iφ = {α ∈O | α(P) =
+∞for all P ∈ker(φ)} corresponds to the isogeny φ with OL(Iφ) = O ∼= End(E1)
+and OR(Iφ) ∼= End(E2). Conversely, if there is a left O-ideal I, then one can
+compute φI with kernel E[I] = {P ∈E1 | α(P) = ∞for all α ∈I}, which
+corresponds to the left O-ideal I. Furthermore, we have deg(φI) = Nrd(I). In
+particular, the isogeny φ is an endomorphism if and only if Iφ is a principal
+ideal. Moreover, assume that φ1 : E →E1 and φ2 : E →E2 are two isogenies
+that correspond to the left ideals I1 and I2, respectively. Then E1 and E2 belong
+to the same isomorphism class if and only if I1 and I2 are equivalent.
+Let I be an integral ideal of maximal order O. Then the ideal I can be
+generated by an α ∈I and the reduced norm Nrd(I). Moreover, the kernel of
+the ideal I satisfies E[I] = E[Nrd(I)] ∩ker(α).
+4
+
+Eichler orders. Let O be a maximal order in Bp,∞and I be a left O-ideal
+connecting O and O′(i.e. OL(I) = O, OR(I) = O′). The Eichler order of I is
+defined as O ∩O′. Besides, the Eichler order of I equals D = Z + I. Let I be
+a left O-ideal and φI : E1 →E2 be an isogeny corresponding to I with degree
+d. If α ∈D, then α is also an endomorphism of E2 and for any P ∈E2[n] with
+gcd(n, d) = 1, we have α(P) = [d−1] ◦φI ◦α ◦ˆφI(P), where d−1 is the inverse of
+d modulo n.
+Pushforward and pullback. Consider the commutative isogeny diagram as
+shown in Figure 1. For separable isogenies φ1 : E →E1 and φ2 : E →E2 satis-
+fying gcd(deg(φ1), deg(φ2)) = 1, define the pushforward isogeny of φ2 through
+φ1 as ψ2 = [φ1]∗φ2, where ker([φ1]∗φ2) = φ1(ker(φ2)). Conversely, we call φ2
+the pullback isogeny of ψ2 through φ1, denoted by φ2 = [φ1]∗ψ2. Similarly,
+we can define ψ1 = [φ2]∗φ1 and φ1 = [φ2]∗ψ1 the pushforward isogeny of φ1
+through φ2 and the pullback isogeny of ψ1 through φ2, respectively.
+E1
+E
+E3
+E2
+ψ2
+φ1
+φ2
+ψ1
+Fig. 1: A commutative isogeny diagram.
+Suppose that the ideals Iφ1, Iφ2 correspond to isogenies φ1, φ2, respectively.
+Under the Deuring correspondence, the ideal corresponding to [φ1]∗φ2 is defined
+as [Iφ1]∗Iφ2 =
+1
+Nrd(Iφ1)Iφ1(Iφ1 ∩Iφ2) . The ideal corresponding to the pullback
+isogeny [φ1]∗ψ2 is [Iφ1]∗[Iψ2] = [Iφ1]∗[Iψ2]. Similarly, we can also define the ideals
+[Iφ2]∗Iφ1 and [Iφ2]∗Iψ1 corresponding to [φ2]∗φ1 and [φ2]∗ψ1, respectively.
+2.2
+Key algorithms in the SQIsign family
+In the following, we review the key algorithms in the SQIsign family, which are
+also fundamental to our protocol. For simplicity, we assume that End(E0) ∼= O0.
+RandomEquivalentIdealN(J): Given a left ideal I of maximal order O and
+N ∈N, outputs an equivalent ideal J ∼I with Nrd(J) < N.
+FullRepresentIntegerO0(M): Given an integer M > p, outputs α ∈O0 such
+that Nrd(α) = M.
+EichlerModConstraint(I, γ, δ): Given a left-O0 ideal I of prime reduced norm
+N and γ, δ ∈O0, outputs (C0, D0) ∈P1(Z/NZ) such that γ(C0j+D0k)δ ∈Z+I.
+FullStrongApproximationM(N, C0, D0): Given M, N, C0, D0 ∈N, outputs
+µ ∈O0 such that µ = m(C0j + D0k) + Nµ1 and Nrd(µ) = M, where m ∈Z and
+µ1 ∈O0.
+5
+
+IsogenyToIdeal(φ, ψ, Iψ): Given an Nφ-isogeny φ : E1 →E2 with Nφ smooth,
+an Nψ-isogeny ψ : E0 →E1 with gcd(Nφ, Nψ) = 1 and its corresponding ideal
+Iψ, outputs the ideal Iφ corresponding to φ.
+Currently, two-dimensional isogenies, i.e., isogenies between principally po-
+larized superspecial abelian varieties, serve as powerful tools in isogeny-based
+cryptography. Based on Kani’s lemma [23, Theorem 2.6], Maino et al. proposed
+the following theorem to break the SIDH protocol.
+Theorem 1 ([25], Theorem 1). Let A, B be coprime integers and D = A +
+B. Assume that E0, E1, E2 and E3 are supersingular elliptic curves over Fp2,
+connected by the isogeny diagram as illustrated in Figure 2,
+E0
+E1
+E2
+E3
+ψ
+φ
+θ
+φ′
+ψ′
+Fig. 2: A sketch of Theorem 1.
+where deg(ψ) = A, deg(φ) = B, ψ′ = [φ]∗ψ, φ′ = [ψ]∗φ, θ = ψ′ ◦φ = φ′ ◦ψ.
+Then the isogeny
+Φ =
+ 
+ψ −bφ′
+φ
+bψ′
+!
+: E0 × E3 →E1 × E2
+is a (D, D)-isogeny from E0×E3 to E1×E2, and the kernel of Φ is {([B]P, θ(P)) |
+P ∈E0[D]}.
+From the above theorem, one can compute the (D, D)-isogeny Φ with kernel
+{([B]P, θ(P)) | P ∈E0[D]}, and evaluate the isogenies ψ, φ by embedding and
+projection. This plays an essential role in SQIsignHD and the SQIsign2D family.
+The algorithm for computing φ, is denoted by KaniCod.
+KaniCod(A, B, E0, E3, P, Q, θ(P), θ(Q); S1; S2): Given integers A, B with A +
+B = D, finite subsets S1 ⊆E0 and S2 ⊆E3, the points {P, Q} such that
+⟨P, Q⟩= E0[D] and the evaluation of the (AB)-isogeny θ : E0 →E3 on {P, Q},
+outputs the codomain E1, the evaluation of ψ on S1 and the evaluation of bφ′ on
+S2.
+6
+
+2.3
+SQIsign2D-East
+The SQIsign2D variants are attractive due to their compact signatures and ef-
+ficient implementations. Here we review SQIsign2D-East, which is considered
+one of the fastest variants within the SQIsign2D family. Notably, SQIsign2D-
+East outperforms SQIsign2D-West in both key generation and signing, while its
+verification speed is comparable to SQIsign2D-West and faster than PRISM-
+sig. The other reason why we take SQIsign2D-East as an instance is that some
+of the security proofs of our new signature share similarities with those of the
+SQIsign2D-East.
+SQIsign2D-East is a Σ-signature scheme, which is derived via the Fiat-
+Shamir transform [20]. We briefly recall the underlying identification protocol,
+as illustrated in Figure 3. For more technical details we refer to [29].
+E0
+E1
+EA
+E2
+Eaux
+•
+ψ
+τ
+φ
+σ
+φaux
+Fig. 3: A sketch of the SQIsign2D-East identification protocol.
+Setup: Given a security parameter λ, let p = 2a+bf −1 be a 2λ-bit prime, where
+f is a small cofactor and 0 ≤a −b ≤2, a ≈b ≈λ. Let E0 : y2 = x3 + x defined
+over Fp with known endomorphism ring End(E0) ∼= O0.
+Key Generation: The prover first takes a random prime Nτ < p
+1
+4 such that
+
+3
+Nτ
+
+= −1, where
+  ·
+·
+
+is the Legendre symbol, and then samples a uniform
+random Nτ-isogeny τ : E0 →EA.
+Commitment: The prover first chooses a prime Nψ < 2a+b ≈p, and then
+samples an Nψ-isogeny ψ : E0 →E1 uniformly at random. After that, the
+prover transmits the commitment curve E1 to the verifier.
+Challenge: The verifier chooses Kcha ∈E1[2b] as the kernel generator of the
+challenge isogeny φ : E1 →E2, and then sends Kcha to the prover.
+7
+
+Response: Given Kcha, the prover constructs the challenge isogeny φ : E1 →
+E2. From the knowledge of τ, ψ and φ, the prover selects a uniform random
+response isogeny σ : EA →E2 such that q = deg(σ) is (2a, 2b)3-nice (as defined in
+Definition 1). After that, the prover samples an auxiliary path φaux : EA →Eaux
+with degree 2a−q uniformly at random. Finally, the prover transmits an eﬀicient
+representation of the composition σ ◦ˆφaux to the verifier.
+Verify: By applying Theorem 1, the verifier accepts if σ is an isogeny from EA
+to E2 with degree (2a, 2b)3-nice. Otherwise, the verifier rejects.
+Definition 1.
+A positive integer q is (2a, 2b)3-nice if
+(1) q is odd;
+(2) q is smaller than 2a;
+(3) q(2a −q) < 2a+b;
+(4) M(q) := q(2a −q)(2a+b −q(2a −q)) is divisible by 3.
+In the original version of SQIsign2D-East, the degree of the response isogeny
+is required to be (2a, 2b, Nτ)-nice, i.e.,
+(1) q is odd;
+(2) q is smaller than 2a;
+(3) q(2a −q) < 2a+b;
+(4)
+
+M(q)
+Nτ
+
+=
+
+−1
+Nτ
+
+, where M(q) := q(2a −q)(2a+b −q(2a −q)).
+However, this restriction leaks a Legendre symbol modulo Nτ. In [11], Castryck
+et al. proposed a key-recovery attack on the original version of SQIsign2D-East
+that halves the security level. To mitigate this attack, the modified protocol
+includes the following requirements:
+– Require 3 to be a non-quadratic residue modulo Nτ;
+– Ensure that the degree of the response isogeny is (2a, 2b)3-nice.
+The prover may fail to sample a response isogeny of (2a, 2b)3-nice degree. An
+effective way to reduce the failure probability is to apply the ”gcd-trick” [11,
+Section 4.1]. Additionally, the modification requires that q/ gcd(q, f) is (2a, 2b)3-
+nice.
+3
+New Algorithm
+In the SQIsign2D family, one main issue is to randomly generate an isogeny
+whose degree is non-smooth. In this section we propose two new algorithms,
+which are the main building blocks of SQIsign2D2. Given an endomorphism
+ring End(E0) and an integer d < p1/4, the first algorithm, named ImRanIso,
+generates a d-isogeny starting from E0 eﬀiciently. From the knowledge of τ :
+E0 →E, we use GenImRanIso to generate a random d-isogeny starting from
+E.
+8
+
+In the following, we assume that the initial curve E0 : y2 = x3 + x is defined
+over Fp, where p = C · D −1 with D = 2e2, gcd(C, D) = 1 and C ≈D ≈√p.
+For eﬀiciency, we set C = ℓeℓ, where ℓis a small odd prime. The endomorphism
+ring of E0 is isomorphic to a maximal quaternion order O0.
+3.1
+Generating a random isogeny starting from E0 for key
+generation
+The first eﬀicient algorithm to generate a non-smooth isogeny ι starting from E0,
+named RandIsogImg, was introduced by Nakagawa and Onuki [27]. The main
+idea is to compute an endomorphism of E0 first, and then decompose it into two
+isogenies ρ1 and ρ2 by computing a two-dimensional isogeny, where the sum of
+deg(ρ1) and deg(ρ2) is 2e ≈p with e ∈N. This algorithm is further extended
+and generalized, becoming a fundamental component of the SQIsign2D family.
+In particular, it is applied to generate the secret key in SQIsign2D-East.
+Very recently, Basso et al. proposed a new algorithm [8, Algorithm 3] to eﬀi-
+ciently generate a random non-smooth isogeny starting from E0. The algorithm
+(we call it RanIso in our paper) requires that the characteristic has the form
+p = f · C · D −1, where f is a small cofactor, D = 2e2 and C is smooth coprime
+to 2. RanIso first computes an endomorphism θ of E0 with degree d(D −d)C,
+where d is the degree of the desired isogeny. Then the algorithm decomposes an
+C-isogeny from the endomorphism, and finally obtains the desired d-isogeny via
+(D, D)-isogenies.
+In this subsection, we present an improved version of RanIso, abbreviated as
+ImRanIso, which computes a non-smooth isogeny from E0 under our parameter
+setting in key generation. Here we set D′ = 2• and D′ ≈
+√
+D ≈p1/4.
+Since the degree of the secret isogeny is approximately p1/4, computing the
+secret isogeny through (D, D)-isogeny is ineﬀicient. Different from RanIso, the
+improved algorithm ImRanIso adapts a CD′-isogeny instead of a C-isogeny. A
+sketch of ImRanIso is illustrated in Figure 4.
+Algorithm 1 ImRanIsoO0(d, C, D, D′, S)
+Require: An integer d coprime to C, D, a supersingular elliptic curve E0 with known
+endomorphism ring O0, and a finite set S ⊂E0;
+Ensure: The image curve E of a random d-isogeny ι starting from E0, a finite set
+ι(S) ∈E, and the ideal Iι corresponding to ι.
+1: Select {P0, Q0} such that ⟨P0, Q0⟩= E0[D];
+2: θ ←FullRepresentIntegerO0(d(D/D′ −d)CD′);
+3: Iφ ←O0⟨θ, CD′⟩;
+4: Compute φ : E0 →E′ with kernel E[Iφ];
+5: (E; ι(S); ∅) ←KaniCod(d, D/D′−d, E0, E′, [D′]P0, [D′]Q0, [1/C]◦φ◦θ(P0), [1/C]◦
+φ ◦θ(Q0); S; ∅);
+6: Iι ←O0(θ, d);
+7: return E, ι(S), Iι.
+9
+
+E0
+E′′
+E
+E′
+E1
+E0
+ι
+ψ
+θ
+φ2
+φ1
+φ
+Fig. 4: A sketch of Algorithm 1. The isogeny φ = φ2 ◦φ1, where φ1 (resp. φ2)
+has degree D′ (resp. C).
+ImRanIso first generates an endomorphism θ ∈End(E0) whose degree
+deg(θ) = d(D/D′ −d)CD′ > p, where d is an odd positive integer and d < p1/4.
+Since the integers C, D′ are smooth and E0[CD′] ⊂E0(Fp2), we can eﬀiciently
+compute and evaluate the isogeny φ : E0 →E′ of degree CD′, which corresponds
+to the ideal Iφ = O0⟨θ, CD′⟩. It follows from φ ◦θ = [CD′]ψ that
+ψ([D′]P0) = [1/C] ◦φ ◦θ(P0),
+ψ([D′]Q0) = [1/C] ◦φ ◦θ(Q0),
+where {P0, Q0} is a basis of E0[D]. Since ⟨[D′]P0, [D′]Q0⟩= E0[D/D′] and
+deg(ψ) = d(D/D′ −d) is coprime to 2, we can compute Φ : E0 × E′ →E × E′′
+to obtain the target d-isogeny ι eﬀiciently.
+When the integer d is relatively small, RandIsogImg needs to set e ≈
+log2(p) to confirm the degree of the endomorphism is large enough. In contrast,
+ImRanIso adapts the CD′-isogeny, and significantly decreases the degree of the
+two-dimensional isogeny. It should be noted that RanIso can also successfully
+generate non-smooth isogenies of degree with degree < p
+1
+4 under our parame-
+ter setting, though it is less eﬀicient than ImRanIso. Table 2 gives the cost
+estimates for the algorithms mentioned above.
+Remark 1. It should be noted that if θ generated in ImRanIso is divisible by
+2 and ℓ, the ideal Iφ does not correspond to a cyclic isogeny. To circumvent this
+issue, one divides θ by 2 and ℓuntil obtaining an endomorphism θ′ such that
+2, ℓdoes not divide θ′. If deg(θ′) < d(D/D′ −d), we can obtain a d(D/D′ −d)-
+isogeny by supplementing several random ℓ-isogenies. If deg(θ′) = d(D/D′ −d) ˜C
+with ˜C | CD′, we compute the ˜C-isogeny φ : E0 →E′ with kernel E[Iφ], where
+Iφ = O0⟨¯θ′, ˜C⟩. This yields the isogeny [1/ ˜C] ◦φ ◦θ′ : E0 →E′ of degree
+d(D/D′ −d), and the d-isogeny ι : E0 →E can be obtained by decomposing the
+10
+
+Table 1: Cost estimates for non-smooth isogeny generations in key generation.
+Note that Algorithm RandIsogImg cannot be directly implemented under our
+parameter settings.
+Algorithm
+Isogeny Degree Size
+Dimension 1
+Dimension 2
+RandIsogImg [27, Algorithm 2]
+0
+≈p
+RanIso [8, Algorithm 3]
+≈p
+1
+2
+≈p
+1
+2
+ImRanIso (Algorithm 1)
+≈p
+3
+4
+≈p
+1
+4
+(D/D′, D/D′)-isogeny from E0 × E′. This countermeasure further improves the
+performance, since the chain length of ℓ-isogenies is reduced.
+3.2
+Generating a random auxiliary path
+To achieve a fast verification in the SQIsign2D family, the prover computes an
+auxiliary path of degree d ≈√p as a part of the conversation. The main idea
+of the auxiliary path generation in SQisign2D-East is to adapt EichlerMod-
+Constraint and FullStrongApproximation to generate an endomorphism
+θ ∈End(E), and then decompose θ to obtain the required auxiliary isogeny
+of degree d ≈√p, where E is the codomain of an Nτ-isogeny τ starting from
+the initial curve E0 with known endomorphism ring. To ensure the solution of
+FullStrongApproximation satisfies the condition that Nrd(θ) > pN 3
+τ ≈p
+7
+4 ,
+the prover sets Nrd(θ) = d′(2e −d′), where d′ = d(2a −d), a ≈log(p)/2 and
+e ≈log(p). This allows the prover to proceed with a two-step isogeny evalua-
+tion process: Construct a (2e, 2e)-isogeny to evaluate the d′-isogeny, and then
+decompose the d′-isogeny to obtain the required auxiliary isogeny by performing
+a (2a, 2a)-isogeny computation.
+In the following we present a generalized version of ImRanIso, abbreviated
+as GenImRanIso, which can compute a non-smooth isogeny from E under our
+parameter setting. The main procedure is summarized in Algorithm 2.
+The algorithm first generates the endomorphism α ∈O = Z + Iτ by us-
+ing EichlerModConstraint and FullStrongApproximation, satisfying that
+deg(α) = d(D−d)CC′ > pN 3
+τ ≈p
+7
+4 with C′|C. Since the integer C is smooth and
+E[C] ⊂E0(Fp2), the C′-isogeny φ1 : E →E1 and the C-isogeny φ2 : E →E2
+can be constructed and evaluated by Vélu’s formula. In this case, we are able
+to evaluate the isogeny from E1 to E2 of degree d(D −d), and hence one can
+compute Φ : E1 × E2 →E′ × E′′ to obtain a d-isogeny ι′ : E1 →E′. Finally,
+pullback the isogeny ι′ through φ1, and obtain the auxiliary isogeny ι = [φ1]∗ι′
+from E of degree d. A sketch of GenImRanIso is illustrated in Figure 5.
+Remark 2. The ideals Iφ1, Iφ2 do not correspond to cyclic isogenies when α
+is divisible by ℓ. Similar to the countermeasure mentioned in Remark 1, we
+11
+
+Algorithm 2 GenImRanIsoτ,Iτ (d, C, C′, D, S)
+Require: An N-isogeny τ : E0 →E with End(E0) ∼= O0 and gcd(N, CD) = 1, an
+ideal Iτ which corresponds to τ, an integer d ≈√p coprime to CD, an integer
+C′|C, and a finite set S ⊂E where the points in S have order coprime to C;
+Ensure: The image curve Eι of a random d-isogeny ι starting from E, and a finite set
+ι(S) ∈Eι.
+1: Select {P, Q} such that ⟨P, Q⟩= E[D];
+2: (C0 : D0) ←EichlerModConstraint(Iτ, 1, 1);
+3: α ←FullStrongApproximationd(D−d)CC′(N, C0, D0);
+4: Iφ1 ←[Iτ]∗O0⟨α, C′⟩, Iφ2 ←[Iτ]∗O0⟨¯α, C⟩;
+5: Compute φ1 : E →E1 with kernel E[Iφ1] = ⟨K1⟩, S1 = φ1(S);
+6: Select K ∈E such that ⟨K1, K⟩= E[C′];
+7: Compute φ2 : E →E2 with kernel E[Iφ2];
+8: (E′; ι′(S1) ∪ι′ ◦φ1(K); ∅) ←KaniCod(d, D −d, E1, E2, φ1(P), φ1(Q), [1/C] ◦φ2 ◦
+α(P), [1/C] ◦φ2 ◦α(Q); S1 ∪{φ1(K)}; ∅);
+9: Compute [ι′]∗ˆφ1 : E′ →Eι with kernel ⟨ι′ ◦φ1(K)⟩;
+10: return Eι, [1/C′] ◦[ι]∗ˆφ1 ◦ι′(S1).
+E
+E1
+E′′
+Eι
+E′
+E2
+E
+φ1
+ι
+α
+ι′
+[ι′]∗ˆ
+φ1
+φ2
+Fig. 5: A sketch of Algorithm 2.
+divide α by ℓuntil α is not divisible by ℓ. Denote this newly obtained cyclic
+endomorphism as α′. If the degree of α′ is less than d(D −d), we can obtain
+a d(D −d)-isogeny by supplementing several random ℓ-isogenies. Otherwise,
+suppose deg(α′) = d(D −d) ˜C, where ˜C | CC′. Then there are two cases as
+follows:
+1. If ˜C ≤C, we compute the ˜C-isogeny φ2 : E →E2 with kernel E[Iφ2], where
+Iφ2 = O0⟨¯α′, ˜C⟩. Then the isogeny [1/ ˜C] ◦φ2 ◦α′ : E →E2 has degree
+d(D −d). Subsequently, we obtain the d-isogeny ι : E →Eι by computing
+the (D, D)-isogeny from E × E2.
+2. If ˜C > C, we compute the C-isogeny φ2 : E →E2 with kernel E[Iφ2]
+and the ( ˜C/C)-isogeny φ1 : E →E1, with kernel E[Iφ1], where Iφ2 =
+O0⟨¯α′, C⟩, Iφ1 = O0⟨α′, ˜C/C⟩. This allows us to construct the isogeny of
+12
+
+degree d(D −d) from E1 to E2, following the procedures outlined in Algo-
+rithm 2.
+The main eﬀiciency improvement compared to the previous work [29, Algo-
+rithm 3] is that our algorithm GenImRanIso avoids the (2e, 2e)-isogeny com-
+putation by leveraging isogenies in dimension one. To generate an endomorphism
+α that satisfies the norm condition Nrd(α) > pN 3
+τ for FullStrongApproxima-
+tion, the previous work relies on two-dimensional isogenies. In contrast, we take
+full advantage of the accessible torsion group E[C] to eﬀiciently construct the
+isogenies φ1 and φ2 in dimension one, leading to a significant speedup in the
+non-smooth isogeny generation process. Table 3 illustrates the cost estimates of
+the auxiliary isogeny generations between the previous work and ours.
+Table 2: Cost estimates for auxiliary isogeny generations. Note that Algorithm
+AuxiliaryPath cannot be directly implemented under our parameter settings.
+Table 3: Cost Estimates for Auxiliary Path Generation.
+Algorithm
+Isogeny Degree Size
+Dimension 1
+Dimension 2
+AuxiliaryPath [29, Algorithm 3]
+0
+≈p
+3
+2
+GenImRanIso (Algorithm 2)
+≈p
+3
+2
+≈p
+1
+2
+3.3
+Relaxing the condition on d
+In applications (especially for our scheme), we hope that one can generate a
+d-isogeny from a supersingular curve when gcd(d, C) ̸= 1, i.e., d can be divisible
+by ℓ. Suppose that d = d′ℓb with gcd(d′, ℓ) = 1. We first compute an isogeny ι′ of
+degree d′ as in GenImRanIso and pullback the isogeny ι′ : E1 →E′ to obtain
+ι1 : E →Eι1. Here we propose two methods to obtain the d-isogeny. The first
+method is to supplement a ℓb-isogeny starting from Eι1. This can be achieved
+by randomly selecting a ℓb-isogeny ι2. Note that deg(ι2) is smooth so it can be
+generated eﬀiciently. The second method chooses the final ℓb steps in [ι′]∗( ˆφ1)
+to be ˆι2, and let ι = ι2 ◦ι1.
+In the following, we consider how to modify GenImRanIso to achieve a
+faster implementation in the second method. To supplement a random ℓb-isogeny,
+we compute and evaluate the isogeny φ3 with kernel ⟨[ℓb]ι′ ◦φ1(K)⟩instead of
+going through the entire path [ι′]∗ˆφ1. As shown in Figure 6, ι = ι2 ◦ι1 is a
+d-isogeny starting from E, and we can evaluate ι by ι = [1/ deg(φ3)]φ3 ◦ι′ ◦φ1.
+Obviously, the second method is more eﬀicient compared to the first one.
+13
+
+Remark 3. In the second method, the kernel of the isogeny ι is ker(α) ∩E[d].
+Essentially, regardless of whether d is divisible by ℓ, the isogeny ι is the d-isogeny
+of the initial part of α, i.e., ker(ι) = ker(α) ∩E[d]. Heuristically, we expect that
+ι is chosen uniformly at random once α is chosen uniformly at random.
+E
+E1
+E′′
+Eι1
+Eι
+E′
+E2
+E
+ι1
+ι
+α
+φ1
+ι′
+ι2
+φ3
+φ2
+[ι′]∗( ˆ
+φ1)
+Fig. 6: Auxiliary isogeny generation (relaxing d).
+4
+SQIsign2D2
+Based on the new algorithms proposed in Section 3, in this section we introduce
+our newly developed signature scheme called SQIsign2D2. First, we describe the
+detailed processes of the SQIsign2D2 identification protocol. Next, we put for-
+ward CompactSQIsign2D2, which features a smaller signature size compared to
+the original SQIsign2D2. Finally, the response ideal sampling is briefly discussed
+in Section 4.3.
+4.1
+Identification protocol
+We first present the SQIsign2D2 identification protocol. Using the Fiat–Shamir
+transform [20], it is straightforward to convert the identification protocol into
+a corresponding signature scheme. Therefore, we omit the description of the
+SQIsign2D2 digital signature.
+Setup: Given a security parameter λ, let p = C · D −1 be a 2λ-bit prime where
+C = 3e3, D = 2e2, and C ≈D ≈√p. Define D′ = 2⌊e2/2⌋. Let E0 : y2 = x3 + x
+be a supersingular elliptic curve defined over Fp with known endomorphism ring
+14
+
+End(E0) ∼= O0. Finally, let {PC, QC} {PD, QD} be the canonical bases of E[C]
+and E[D], respectively.
+Key Generation: Select a prime Nτ < p
+1
+4 uniformly at random such that
+
+3
+Nτ
+
+= −1. Then use ImRanIso to generate an Nτ-isogeny τ : E0 →EA and
+the corresponding ideal Iτ. Besides, the prover evaluates τ at the canonical bases
+of E0[C] and E0[D].
+Algorithm 3 Key Generation
+Require: A supersingular curve E0 with known endomorphism ring End(E0) ∼= O0,
+a torsion basis {PC, QC} of E0[C], a torsion basis {PD, QD} of E0[D];
+Ensure: The public key EA and the secret key (Iτ, Nτ, τ(PC), τ(QC), τ(PD), τ(QD)).
+1: Select a random prime Nτ < p
+1
+4 such that
+(
+3
+Nτ
+)
+= −1;
+2: EA, {τ(PC), τ(QC), τ(PD), τ(QD)}, Iτ ←ImRanIsoO0(Nτ, C, D, D′, {PC, QC, PD, QD});
+3: return pk = (EA), sk = (Iτ, Nτ, τ(PC), τ(QC), τ(PD), τ(QD)).
+Similar to the case in the original SQIsign2D-East identification protocol, the
+limitation that
+
+3
+Nτ
+
+= −1 in our protocol is to resist the attack as proposed
+in [11].
+Commitment: The commitment phase is similar to the key generation phase.
+Instead of sampling an isogeny of degree < p
+1
+4 , we sample an isogeny ψ such
+that Nψ = deg(ψ) < D ≈√p and gcd(Nψ, CD) = 1. The main procedure is
+shown in Algorithm 4.
+Algorithm 4 Commitment
+Require: A supersingular curve E0 with known endomorphism ring O0 and a torsion
+basis {PD, QD} of E0[D];
+Ensure: The commitment curve E1, the isogeny ψ : E0 →E1 and ψ(PD), ψ(QD).
+1: Select a random integer Nψ < D with gcd(Nψ, CD) = 1;
+2: E1, {ψ(PD), ψ(QD)}, Iψ ←ImRanIsoO0(Nψ, C, D, 1, {PD, QD});
+3: return E1, (Nψ, Iψ, ψ(PD), ψ(QD)).
+Since the number of Nψ-isogenies starting from E0 is about Nψ and Nψ < D,
+we expect that the output space of ImRanIso is of size O(p). On the other hand,
+there are approximately p/12 isomorphism classes in the supersingular isogeny
+graph. Therefore, we give the following assumption:
+Assumption 1 The commitment curve E1 computed by ImRanIso(Nψ, −)
+with Nψ ≈√p is computationally indistinguishable from an elliptic curve chosen
+uniformly at random in the supersingular isogeny graph.
+15
+
+To reinforce the plausibility of Assumption 1 under our parameter setting,
+an alternative approach is to enlarge the degree of the commitment isogeny. In
+Section 5.3, we propose several countermeasures to address this issue.
+Challenge: Given the commitment curve E1, the verifier just needs to choose
+a random integer c ∈Z/CZ and then compute Pcha + [c]Qcha as the challenge,
+where {Pcha, Qcha} is the canonical basis of E1[C]. Algorithm 5 describes this
+process.
+Algorithm 5 Challenge
+Require: The commitment curve E1.
+Ensure: Kcha ∈E1[C].
+1: Compute the canonical basis {Pcha, Qcha} of E1[C];
+2: Select a random integer c ∈Z/CZ;
+3: Kcha ←Pcha + [c]Qcha;
+4: return Kcha.
+Response: The response phase can be divided into two parts. One part is the
+response isogeny generation, while the other is the auxiliary path generation
+from EA. Before introducing the details of the response process, we give the
+definition of D-adequate.
+Definition 2. An integer q is D-adequate if q is odd, q < D and 3 ∤q.
+The response isogeny generation is analogous to that of SQIsign2D-East.
+Firstly, compute the ideal Iφ with respect to the kernel ⟨Kcha⟩. After computing
+the ideal J = IτIψIφ which corresponds to φ◦ψ◦ˆτ, we sample an element α ∈J
+uniformly at random such that q = Nrd(α)
+Nrd(J) is D-adequate. Then Iσ = J
+α
+Nrd(J) is
+the response ideal which is equivalent to J. By evaluating ˆα, ˆτ, ψ, φ, we obtain
+an eﬀicient representation (q, PA, QA, σ(PA), σ(QA)) of the q-isogeny σ, where
+{PA, QA} is the canonical basis of EA[D].
+The main difference of the response isogeny generation between the SQIsign2D-
+East identification protocol and ours is that we do not require that q is (2a, 2b)3-
+nice. Instead, we limit q to be D-adequate. It should be noted that we no longer
+require 3 ∤D −q as explained in Section 3.3.
+Compared with generating an eﬀicient representation of σ, the auxiliary
+isogeny computation from EA is a more expensive and complicated procedure.
+Firstly, we check whether
+d(D −d)
+Nτ
+
+=
+−1
+Nτ
+
+,
+(1)
+i.e.,
+
+d(D−d)C2
+Nτ
+
+=
+
+−1
+Nτ
+
+. If this condition holds, we generate an endomorphism
+θ ∈End(EA) of norm d(D −d)C2 and obtain the auxiliary d-isogeny φaux with
+16
+
+the help of GenImRanIso. Otherwise, we compute the endomorphism of EA
+of degree d(D −d)C2/3 instead to obtain the auxiliary isogeny.
+Remark 4. It is natural to ask why we require a Legendre symbol testing as
+illustrated in Equation (1). Using Algorithm 2, the endomorphism θ satisfies
+that
+Nrd(θ) = d(D −d)CC′ ≡m2p(C2
+0 + D2
+0) mod Nτ,
+where m, C0, D0 ∈Z and C′ = C or C/3. From the definition of EichlerMod-
+Constraint, there exists m′ ∈Z such that
+m′ + C0j + D0k ∈Iτ.
+This condition implies
+(m′)2 + p(C2
+0 + D2
+0) ≡0 mod Nτ.
+Therefore,
+
+p(C2
+0+D2
+0)
+Nτ
+
+=
+
+−1
+Nτ
+
+. The choice of C′ confirms that
+
+d(D−d)CC′
+Nτ
+
+=
+
+−1
+Nτ
+
+, leading to the existence of the endomorphism θ.
+In the SQIsign2D-East identification protocol, the prover computes an addi-
+tional 3-isogeny when the specific Legendre symbol condition does not hold [11].
+This additional step requires more computational resources (including kernel
+generation and isogeny computations), even though it is not the main eﬀiciency
+bottleneck. Conversely, our handling does not increase the computational costs.
+Notably, when the Legendre symbol condition is not satisfied, our method ex-
+hibits slightly superior performance as the degree of φ1 in GenImRanIso is
+reduced.
+To decrease the response size, the prover computes the matrix M such that
+(Paux, Qaux) = (Raux, Saux)M, where {Paux, Qaux} is the canonical basis of
+Eaux[D], Raux = φaux(PA) and Saux = φaux(QA). From (σ ◦ˆφaux(Paux), σ ◦
+ˆφaux(Qaux)) = d(σ(PA), σ(QA))M and D = q + d, we have
+(U2, V2) = −(σ(PA), σ(QA))M
+=
+1
+q
+
+[−q](σ(PA), σ(QA))M
+=
+1
+q
+
+[d](σ(PA), σ(QA))M
+=
+1
+q
+
+◦σ ◦ˆφaux(Paux),
+1
+q
+
+◦σ ◦ˆφaux(Qaux)
+
+.
+The response is (Eaux, U2, V2). To summarize, we present the response algorithm
+in Algorithm 6.
+17
+
+Algorithm 6 Response
+Require: The secret key sk, the secret information (Nψ, Iψ, ψ(PD), ψ(QD)) generated
+in the commitment phase and the challenge Kcha;
+Ensure: the curve Eaux and {U2, V2} ∈E2[D].
+1: Compute φ : E1 →E2 with kernel ⟨Kcha⟩;
+2: Iφ ←IsogenyToIdeal(φ, ψ, Iψ);
+3: J ←IτIψIφ, Iσ = J
+¯α
+Nrd(J) ←RandomEquivalentIdealD(J), q ←Nrd(J);
+4: If q is not D-adequate, go back to Step 3;
+5: Let PA, QA be the canonical basis of EA[D];
+6: Compute σ(PA), σ(QA);
+7: d ←D −q;
+8: if
+(
+d(D−d)
+Nτ
+)
+=
+(
+−1
+Nτ
+)
+then
+9:
+Eaux, {Raux, Saux} ←GenImRanIsoτ,Iτ (d, C, C, D, {PA, QA});
+10: else
+11:
+Eaux, {Raux, Saux} ←GenImRanIsoτ,Iτ (d, C, C/3, D, {PA, QA});
+12: end if
+13: Let {Paux, Qaux} be the canonical basis of Eaux[D] and compute the matrix M
+such that (Paux, Qaux) = (Raux, Saux)M;
+14: Compute (U2, V2) = −(σ(PA), σ(QA))M;
+15: return Eaux, {U2, V2}.
+Verify: From the subgroup
+K = ⟨(Paux, U2), (Qaux, V2)⟩
+=
+
+Paux,
+1
+q
+
+σ ◦ˆφaux(Paux)
+
+,
+
+Qaux,
+1
+q
+
+σ ◦ˆφaux(Qaux)
+
+= ⟨([q]Paux, σ ◦ˆφaux(Paux)), ([q]Qaux, σ ◦ˆφaux(Qaux)⟩,
+the verifier computes the (D, D)-isogeny Φ from Eaux × E2. The verifier accepts
+if the image of Φ is EA × E3 or E3 × EA for an elliptic curve E3 and the degree
+of σ : EA →E2 is D-adequate. Otherwise, the verifier rejects.
+Algorithm 7 Verify
+Require: The public key pk = (EA), the commitment curve E1, the challenge Kcha
+and the response (Eaux, {U2, V2});
+Ensure: true or false.
+1: Compute the canonical basis {Paux, Qaux} of Eaux[D];
+2: Compute
+the
+(D, D)-isogeny
+Φ
+:
+Eaux × E2
+→
+A
+with
+kernel
+K
+=
+⟨(Paux, U2), (Qaux, V2)⟩;
+3: if A ∼= EA × E3 or A ∼= E3 × EA then
+4:
+if the degree of ˆσ : E2 →EA decomposed from Φ is D-adequate then
+5:
+return true.
+6:
+end if
+7: end if
+8: return false.
+18
+
+4.2
+Compactness
+Via the Fiat-Shamir transform, the signature in SQIsign2D2 is of the form
+(j(E1), j(Eaux), U2, V2).
+Indeed, the points {U2, V2} can be further compressed. The main idea is
+to use the canonical basis of E2[D] to linearly represent {U2, V2}. Rather than
+storing their coordinates, we store the associated scalars, reducing the size to
+approximately 3λ bits. This technique has also been employed in public-key
+compression of SIDH [4,14]. In total, the signature size is approximately 11λ
+bits.
+Similar to SQIsign2D-East, the signature in SQIsign2D2 can be further com-
+pressed: Instead of transmitting data related to Eaux and E2, the prover sends
+the information associated with EA and E3. Correspondingly, the verifier re-
+constructs the (D, D)-isogeny from EA × E3 to Eaux × E2. Since EA is the
+public key, this eliminates the need for the prover to transmit the data related
+to EA. Instead, the prover needs to give the description of the dual of the chal-
+lenge isogeny, as the verifier cannot independently generate the challenge isogeny
+without access to the commitment curve E1.
+Overall, the compressed signature is of the form (j(E3), U3, V3, P2, t, bin).
+Clearly, the size of j(E3) is 4λ bits, while the reduced size of {U3, V3} is 3λ bits.
+The point P2 ∈E2[C] can be represented by an element in Z/CZ, the integer
+t ∈Z/CZ is used for the fast verification and bin is a bit. Therefore, the total
+size of the signature is around 9λ bits.
+We refer to the compact version of SQIsign2D2 as CompactSQIsign2D2. The
+response and verification algorithms in CompactSQIsign2D2 are described in
+Algorithms 8 and 9.
+Algorithm 8 CompactResponse
+Require: The secret key sk, the secret information (Nψ, Iψ, ψ(PD), ψ(QD)) generated
+in the commitment phase and the message m;
+Ensure: The compressed signature (E3, U3, V3, P2, t, bin).
+1: Let K1 be the kernel generator of φ, which is hashed from the message m and the
+commitment curve E1;
+2: Let P2 be a generator of ker( ˆφ);
+3: Deterministically compute Q2 ∈E2[C] such that ⟨P2, Q2⟩= E2[C];
+4: Find t ∈Z/CZ and K1 = [t] ˆφ(Q2);
+5: Compute (σ(PA), σ(QA)), (Eaux, U2, V2), q and d as in Algorithm 6;
+6: (E3; ∅; {U3, V3}) ←KaniCod(q, d, Eaux, E2, Paux, Qaux, [q]U2, [q]V2; ∅; {[ 1
+d]σ(PA), [ 1
+d]σ(QA))};
+7: Let M, M ′ be the Montgomery coeﬀicient of EA and E3, respectively;
+8: if M ≤M ′ then
+9:
+bin ←0;
+10: else
+11:
+bin ←1;
+12: end if
+13: return E3, U3, V3, P2, t, bin.
+19
+
+Algorithm 9 CompactVerify
+Require: The public key pk = (EA), the message m and the compressed signature
+(E3, U3, V3, P2, t, bin);
+Ensure: true or false.
+1: Compute the canonical basis {PA, QA} of EA[D];
+2: Compute the (D, D)-isogeny Φ : EA × E3 →A with kernel ⟨(PA, U3), (QA, V3)⟩;
+3: if A ≇E′ × E′′ for elliptic curves E′, E′′ then
+4:
+return false.
+5: end if
+6: Let M ′, M ′′ be the Montgomery coeﬀicient of E′, E′′;
+7: if M ′ > M ′′ then
+8:
+(M ′, M ′′) ←(M ′′, M ′);
+9: end if
+10: if bin = 0 then
+11:
+E2 ←E′;
+12: else
+13:
+E2 ←E′′;
+14: end if
+15: if the degree of σ : EA →E2 decomposed from Φ is not D-adequate then
+16:
+return false
+17: end if
+18: Deterministically compute Q2 ∈E2[C] such that ⟨P2, Q2⟩= E2[C];
+19: Compute the C-isogeny ˆφ : E2 →E1 with kernel ⟨P2⟩and L = ˆφ(Q2);
+20: Let K1 be the kernel generator of φ, which is hashed from the message m and the
+commitment curve E1;
+21: if K1 = [t]L then
+22:
+return true;
+23: else
+24:
+return false;
+25: end if
+4.3
+Response ideal sampling
+In SQIsign2D2, the degree q of the response isogeny is D-adequate, i.e., q is odd,
+q < D and 3 ∤q. As in [11, Conjugate 6], the probability that q ≡1 mod 2 is 3/8,
+while the probability that 3 ∤q is 2/3. Therefore, the probability that finding q
+satisfying both conditions is expected to be 1/4.
+The Gaussian heuristic illustrates that in a lattice Λ ⊆R4, the number of
+α ∈Λ with norm less than R is approximately
+π2R4
+2Vol(Λ). When applied to Λ = J
+and R =
+p
+DNrd(J), there are around 2π2D2
+p
+≈2π2DC−1 elements in J with
+norm less than ∥α∥< R. Since OR(J)× = {±1}, the number of the response
+isogenies of degree less than D is approximately π2DC−1. Hence, the failure
+probability of finding such q is
+Pr [none of q are D-adequate] =
+
+1 −1
+4
+π2DC−1
+=
+3
+4
+π2DC−1
+.
+20
+
+To further decrease the failure probability, one may set p = f ·D·C−1, where
+f is a small cofactor coprime to CD, and adapt the “gcd-trick” [11, Section
+4.1] in the response phase. Indeed, for t = 1 and t = 2, the probability of q
+being odd increases to 21/32 and 105/128, respectively. However, according to
+our experiments of SQIsign2D2, we expect that the failure probability is small
+enough for practice.
+5
+Security
+In this section we propose a formal security analysis of the SQIsign2D2 identi-
+fication protocol. The correctness is straightforward, hence our analysis focuses
+on demonstrating its special soundness and zero-knowledge properties.
+Same as other SQIsign2D variants, the zero-knowledge property of SQIsign2D2
+relies on the fundamental assumption that the commitment curve E1 is compu-
+tationally indistinguishable from an elliptic curve chosen uniformly at random in
+the supersingular isogeny graph. To strengthen the plausibility of this assump-
+tion in SQIsign2D2, in Section 5.3 we present several alternative countermeasures
+to address this critical requirement.
+5.1
+Special soundness
+The special soundness proof follows a structure analogous to those of SQIsignHD
+and SQIsign2D-East. The hard problem underlying the special soundness proof
+is known as Supersingular Endomorphism Problem:
+Problem 1 (Supersingular Endomorphism Problem). Given a supersingular el-
+liptic curve E over Fp2 with p prime, find a non-trivial endomorphism of E that
+can be eﬀiciently evaluated.
+From [31], the extraction of any non-scalar endomorphism End(EA) enables
+the complete reconstruction of End(EA). This allows for the eﬀicient recovery of
+the secret ideal Iτ and its corresponding isogeny τ in polynomial time. Therefore,
+the proof reduces to demonstrating the extraction of a non-scalar endomorphism
+α ∈End(EA) from two valid conversations with the same commitment and
+different challenges.
+Theorem 2. The SQIsign2D2 identification protocol has the special soundness
+property. That is, given two valid conversations with the same commitment and
+different challenges, one can extract a non-scalar endomorphism α ∈End(EA)
+that can be eﬀiciently evaluated.
+Proof. Assume that the two valid conversations are (E1, Kcha, Eaux, U2, V2) and
+(E1, K′
+cha, E′
+aux, U ′
+2, V ′
+2) with ⟨Kcha⟩̸= ⟨K′
+cha⟩, respectively. From Kcha and K′
+cha
+one can reveal the challenge isogenies φ : E1 →E2 and φ′ : E1 →E′
+2, re-
+spectively. Then the response isogenies σ and σ′ are recovered with respect to
+the knowledge of (Eaux, Paux, Qaux, E2, U2, V2) and (E′
+aux, P ′
+aux, Q′
+aux, E′
+2, U ′
+2, V ′
+2),
+21
+
+E1
+E2
+E0
+E′
+2
+EA
+φ′
+ˆ
+φ
+ψ
+τ
+c
+σ′
+σ
+Fig. 7: A sketch of the special soundness proof.
+where {Paux, Qaux} and {P ′
+aux, Q′
+aux} are the canonical bases of Eaux[D] and
+E′
+aux[D], respectively. Therefore, one can extract an endomorphism α = bσ′ ◦φ′ ◦
+ˆφ ◦σ, as illustrated in Figure 7.
+It remains to prove that the endomorphism α is non-scalar. Assume that
+α = [n] for some integer n. Then α(P) = ∞for all P ∈E[C]. It follows from
+gcd(q, C) = 1, gcd(q′, C) = 1 that φ′ ◦ˆφ = [C], i.e., ker(φ) = ker(φ′). This leads
+to a contradiction. Hence, we conclude that α is a non-scalar endomorphism of
+EA, which ends the proof.
+■
+5.2
+Zero knowledge
+The zero-knowledge proof of the SQIsign2D2 identification protocol parallels
+that of the SQIsign2D-East identification protocol. In the proof, we also define
+two random oracles, to simulate the response isogeny and the auxiliary isogeny,
+respectively.
+Definition 3. Given an integer D, a Random Uniform Adequate Degree Isogeny
+Oracle (RUADIO) is an oracle taking as input a supersingular elliptic curve
+E and returning the tuple (σ(P), σ(Q)), where ⟨P, Q⟩= E[D], σ : E →E′ is
+a random isogeny and deg(σ) = q is D-adequate. Besides, the random oracle
+satisfies the following properties:
+– The distribution of E′ is computationally indistinguishable from that of an
+elliptic curve chosen uniformly at random in the supersingular isogeny graph;
+– The conditional distribution of σ given E′ is uniform among isogenies from
+E to E′ whose degrees are D-adequate.
+Definition 4. Given an integer D, a Fixed Degree Isogeny Oracle (FIDIO) is
+an oracle taking as input a supersingular elliptic curve E and an integer N and
+returning the tuple (φaux(P), φaux(Q)), where {P, Q} is the canonical basis of
+E[D] and φaux : E →E′ is a uniformly random N-isogeny.
+Compared with the SQIsign2D-East identification protocol, we use the ran-
+dom oracle RUADIO to simulate the response isogeny σ, which has a differ-
+ent requirement on deg(σ): The SQIsign2D-East identification protocol requires
+22
+
+deg(σ) to be (2a, 2b)3-nice, while ours demands that deg(σ) be D-adequate. As
+for the auxiliary isogeny simulation, we employ the same random oracle FIDIO.
+Similar to the SQIsign2D-East identification protocol, we assume that the fol-
+lowing problem is hard:
+Problem 1 Let D be the integer defined in the parameter setting and EA be
+the public curve. Define the distribution of the reduced norm of the response
+ideals Iσ on Z by Q. Suppose that DU and DR represent the uniform distribution
+UIso(EA,q) = {φ : EA →∗| deg(φ) = D −q} and the output distribution of
+Algorithm 2, respectively. Let S = {φaux : EA →∗| deg(φaux) = D −q} be a set
+of size M > log(Nτ), where either
+1. S is sampled by first sampling q ∼Q, then sampling φaux from DU; or
+2. S is sampled by first sampling q ∼Q, then sampling φaux from DR.
+The problem is, given EA, D, S, to distinguish between the two cases with a
+polynomial number of queries to Q, FIDIO and DR.
+As discussed in [29, Remark 5], a natural approach to addressing Problem 1
+is to determine the endomorphism by reverse engineering the algorithms. This
+task is equivalent to solving Supersingular Endomorphism Problem, as defined
+in Problem 1. Consequently, we conjecture that Problem 1 is computationally
+hard. A rigorous analysis of the hardness of Problem 1 is left as future work.
+Theorem 3. Suppose that the commitment curve E1 is computationally indis-
+tinguishable from an elliptic curve chosen uniformly at random in the supersingu-
+lar isogeny graph, and Problem 1 is computationally hard. Then, the SQIsign2D2
+identification protocol is special honest-verifier zero-knowledge (SHVZK) in the
+RUADIO and FIDIO models. That is, there exists a simulator S with access
+to RUADIO and FIDIO, such that the distribution of the accepting conversa-
+tions generated by S is computationally indistinguishable from those of honest
+executions of the SQIsign2D2 identification protocol.
+Proof. We proceed similarly as the zero-knowledge proof of SQIsign2D-East.
+The simulator S operates as follows: The simulator first adapts the RUADIO
+model to generate an eﬀicient representation (EA, PA, QA, E′
+2, σ′(PA), σ′(QA))
+of a q′-isogeny σ′ : EA →E′
+2, where {PA, QA} is the canonical basis of EA[D]
+and q′ is D-adequate. Subsequently, the simulator S uniformly samples a C-
+isogeny bφ′ : E′
+2 →E′
+1. Finally, the simulator constructs the (D −q′)-isogeny
+φ′
+aux : EA →E′
+aux with the help of FIDIO. The resulting simulated transcript
+takes the form (E′
+1, φ′, E′
+aux, U ′
+2, V ′
+2), where U ′
+2, V ′
+2 are computed from φ′
+aux and
+σ′.
+Assume that the real transcript is (E1, φ, Eaux, U2, V2). In the following, we
+prove that the two transcripts are computationally indistinguishable.
+From the first property of RUADIO, E′
+2 is uniformly distributed in the
+supersingular isogeny graph. Since the isogeny bφ′ : E′
+2 →E′
+1 is chosen uniformly
+at random, the codomain E′
+1 of bφ′ is also uniformly random. Hence, E1 and E′
+1
+23
+
+are computationally indistinguishable. Furthermore, as φ, φ′ are sampled from
+the same way, their distributions are the same.
+The second property of RUADIO ensures that the response isogeny σ′ is
+uniformly distributed among all isogenies of D-adequate degree from EA to E′
+2.
+Similarly, the response isogeny σ in the real transcript has the same distribution.
+Thanks to the hardness of Problem 1, the auxiliary isogeny φaux in the real
+transcript is computationally indistinguishable from a random isogeny φ′
+aux of
+degree D −q starting from EA.
+Therefore, it remains to show that (Eaux, U2, V2) and (E′
+aux, U ′
+2, V ′
+2) are com-
+putationally indistinguishable. Given the computational indistinguishability of
+(σ, φaux) and (σ′, φ′
+aux), it follows that the response (Eaux, U2, V2) in the real
+identification protocol is computationally indistinguishable from (E′
+aux, U ′
+2, V ′
+2)
+in the simulated transcript. This completes the proof.
+■
+Remark 5. Recently, Aardal et al. [2] proposed a full security proof of SQIsign2D-
+West by using a new framework called Fiat–Shamir with hints. Compared to
+SQIsign2D-West, SQIsign2D2 has more heuristic security assumptions. The ap-
+plicability of hint-assisted frameworks to SQIsign2D2 remains an open problem
+for future work.
+5.3
+Commitment sampling
+The zero-knowledge property critically depends on Assumption 1, i.e., the com-
+mitment curve E1 is computationally indistinguishable from an elliptic curve
+chosen uniformly at random in the supersingular isogeny graph.
+During the commitment phase of SQIsign2D2, we construct the commitment
+isogeny of degree Nψ by using ImRanIso. Given our parameter constraint D =
+2e2 with D ∥p + 1, to evaluate the commitment isogeny eﬀiciently via (D, D)-
+isogeny computations, we let Nψ < D ≈√p. In the following, we introduce two
+methods to enlarge the degree of the commitment isogeny, making Assumption 1
+more robust.
+Double path: The first method is based on the algorithm FastDoublePath,
+which is utilized in the key generation and commitment phases in SQIsignHD [15,
+Section 3.3].
+Here we briefly review the algorithm FastDoublePath. First, compute an
+endomorphism γ of E0 with degree C′2D′2, where C′ | C and D′ | D. Then there
+exist two isogenies ρ1 and ρ2 from E to E′ with kernel
+ker(ρ1) = ker(γ) ∩E0[C′D′],
+ker(ρ2) = ker(¯γ) ∩E0[C′D′].
+Consider the following diagram:
+24
+
+E′
+E0
+E1
+E′′′
+E′′
+[θ2]∗θ′
+1
+θ′
+2
+θ1
+θ2
+θ′
+1
+[θ′
+1]∗θ2
+Fig. 8: Commitment generation using the technique in SQIsignHD.
+where ρ1 = bθ′
+1◦θ1, ρ2 = ˆθ2◦θ′
+2, deg(θ1) = deg(θ2) = C′, deg(θ′
+1) = deg(θ′
+2) = D′.
+From the above diagram, the isogeny ψ1 = ([θ′
+1]∗θ2) ◦θ1 is a C′2-isogeny,
+while the isogeny ψ2 = ([θ2]∗θ′
+1) ◦θ′
+2 is D′2-isogeny. Both are isogenies from the
+initial curve E0 to the commitment curve E1. In the challenge phase, we use
+ψ2 to eﬀiciently pullback the challenge isogeny as gcd(C, D′) = 1. On the other
+hand, we use ψ1 to evaluate the response isogeny σ on EA[D] in the response
+phase since gcd(D, C′) = 1.
+In this case, the degree of the commitment isogeny is approximately p. There-
+fore, it is reasonable to assume that the commitment curve E1 is computationally
+indistinguishable in the supersingular graph. As is well known, SQIsignHD is at-
+tractive for its fast signing within the SQIsign family. Therefore, we expect that
+this approach to generating the commitment isogeny will not compromise the
+eﬀiciency of SQIsign2D2.
+(3, 3)-isogeny adaption: Note that p = CD −1, where C = 3e3 and D = 2e2.
+Therefore, one can compute the commitment isogeny by (CD, CD)-isogenies.
+To be precise, the prover begins by selecting a random integer Nψ < CD,
+and then computes an endomorphism θ of E0 with reduced norm Nψ(CD−Nψ).
+Subsequently, the prover computes the (CD, CD)-isogeny from E0×E0 with ker-
+nel ⟨([Nψ]P0, θ(P0)), ([Nψ]Q0, θ(Q0))⟩, where {P0, Q0} is the canonical basis of
+E0[CD]. By decomposition, the Nψ-isogeny ψ : E0 →E1 can be obtained. Since
+C and D are smooth, the evaluation of the (CD, CD)-isogeny is computationally
+feasible. Note that the degree of the commitment isogeny Nψ < CD = p + 1.
+Heuristically, the commitment curve E1 is close to a random elliptic curve in
+the supersingular isogeny graph.
+Currently, the computation of (3, 3)-isogenies is not as eﬀicient as that of
+the (2, 2)-isogenies [13,16]. With further optimizations in (3, 3)-isogeny compu-
+tations, we believe that this countermeasure can be made eﬀicient in practice.
+6
+Implementation
+In this section, we implement SQIsign2D2 and give eﬀiciency comparisons be-
+tween SQIsign2D2 and other SQIsign2D variants.
+25
+
+Section 6.1 provides the parameter settings and the public-key/signature sizes
+of SQIsign2D2 at different security levels. A theoretical comparison of isogeny op-
+eration counts between our protocols and other SQIsign2D variants is proposed
+in Section 6.2, while Section 6.3 presents benchmarking results for SQIsign2D2
+against SQIsign2D-East.
+6.1
+Parameter setting
+Parameter setting is straightforward in SQIsign2D2: For the security parameter
+λ, we just need to sample a 2λ-bit prime p = 2e23e3 −1 with 2e2 ≈3e3. It is
+easy to be found by performing an exhaustive search.
+The signature of SQIsign2D2 takes 11λ bits. As discussed in Section 4.2, the
+size of the signature can be further reduced to 9λ bits. Table 4 presents the used
+Table 4: Parameter settings, public-key sizes and (compressed) signature sizes
+(expressed in bytes) for different security levels.
+Security
+Prime
+Public-key size
+Signature size
+Uncom.
+Com.
+NIST-I
+p = 2131 · 378 −1
+64
+182
+154
+NIST-III
+p = 2194 · 3121 −1
+98
+274
+228
+NIST-V
+p = 2263 · 3156 −1
+128
+359
+299
+primes and the corresponding public-key/signature sizes for different security
+levels.
+6.2
+Cost estimates
+The computational costs of isogeny-based signature schemes, including all the
+SQIsign2D variants, are dominated by isogeny computations. Table 5 reports
+the required isogeny computations of different degrees.
+From Table 5, it is easy to see that SQIsign2D2 reduces two-dimensional
+isogeny computations compared to existing schemes in key generation. Besides,
+we expect that SQIsign2D2 would be more eﬀicient in signing than other existing
+isogeny-based signatures.
+Regarding the signing phase, SQIsign2D2 achieves the shortest chain length
+of (2, 2)-isogeny among all the schemes. Even though SQIsign2D2 needs to com-
+pute a number of 3-isogenies, we anticipate that this does not bring significant
+computational overhead. Compared to PRISM-sig, SQIsign2D2 saves consider-
+able two-dimensional isogenies. Besides, PRISM-sig suffers from its slow LLL
+implementation [5, Section 5.4]. As a result, SQIsign2D2 remains highly com-
+petitive in terms of computational eﬀiciency compared to PRISM-sig.
+26
+
+Table 5: Cost estimates for SQIsign2D variants and SQIsign2D2 using NIST-I
+parameters. The data in parentheses varies slightly depending on the specific
+situations.
+Signature
+Phase
+Isogeny Computation
+2
+3
+5
+(2,2)
+SQIsign2D-West [6]
+KeyGen
+-
+-
+-
+496
+Sign
+(248)
+-
+-
+992
+Verify
+(248)
+-
+-
+(126)
+SQIsign2D-East [29]
+KeyGen
+-
+-
+-
+253
+Sign
+127
+(2)
+(1)
+641
+Verify
+127
+(2)
+(1)
+129
+PRISM-sig [5]
+KeyGen
+-
+-
+-
+496
+Sign
+-
+-
+-
+496
+Verify
+-
+-
+-
+248
+SQIsign2D2 (This work)
+KeyGen
+65
+78
+-
+66
+Sign
+-
+(390)
+-
+262
+Verify
+-
+78
+-
+131
+Finally, SQIsign2D2 achieves rapid verification performance, matching the
+eﬀiciency of SQIsign2D-West and SQIsign2D-East while significantly outper-
+forming PRISM-sig.
+6.3
+Experimental results
+Based on the SQIsign2D-East implementation7, we provide a proof-of-concept
+implementation of SQIsign2D2 in Julia. We compile and benchmark our code on
+Intel(R) Core(TM) i9-12900K 3.20 GHz with TurboBoost and hyperthreading
+features disabled. The eﬀiciency comparison is illustrated in Table 6. Our code
+is available at
+https://github.com/Kaizhan-Lin/SQIsign2DSquare.
+As we can see in Table 6, SQIsign2D2 significantly reduces the key genera-
+tion and signing times compared to SQIsign2D-East. At the NIST-I level, key
+generation achieves an acceleration factor of 2.63, while signing offers a ×2.15
+speedup.
+The compact versions of SQIsign2D2 and SQIsign2D-East show increased
+computational costs compared to their non-compact counterparts. Nevertheless,
+7 https://github.com/hiroshi-onuki/SQIsign2D-East.jl
+27
+
+CompactSQIsign2D2 retains significant performance advantages. For example,
+CompactSQIsign2D2 achieves an acceleration factor of 1.77 for signing at the
+NIST-I level.
+Table 6: Eﬀiciency comparison between SQIsign2D-East and SQIsign2D2
+for different security levels. The compact version of SQIsign2D2 is named
+CompactSQIsign2D2. The experimental results are obtained by averaging over
+100 experiments and expressed in milliseconds. The last column provides the
+acceleration factor.
+Security
+Procedure
+SQIsign2D-East
+SQIsign2D2
+A.F.
+NIST-I
+KeyGen
+560
+213
+2.63
+Sign
+1263
+587
+2.15
+Verify
+296
+247
+1.20
+NIST-III
+Keygen
+924
+371
+2.49
+Sign
+2675
+1265
+2.11
+Verify
+474
+557
+0.85
+NIST-V
+KeyGen
+1523
+486
+3.13
+Sign
+4318
+1973
+2.19
+Verify
+771
+855
+0.90
+Security
+Procedure
+CompactSQIsign2D-East
+CompactSQIsign2D2
+A.F.
+NIST-I
+KeyGen
+617
+224
+2.75
+Sign
+1693
+959
+1.77
+Verify
+304
+254
+1.20
+NIST-III
+Keygen
+999
+364
+2.74
+Sign
+3052
+1702
+1.79
+Verify
+567
+613
+0.92
+NIST-V
+KeyGen
+1561
+693
+2.25
+Sign
+4928
+2477
+1.99
+Verify
+779
+833
+0.94
+The verification procedure of SQIsign2D2 remains comparable to that of
+SQIsign2D-East. SQIsign2D-East may involve the small-degree isogeny compu-
+tations in dimension one in verification. On the other hand, SQIsign2D2 requires
+the verifier to additionally reveal the degree q of the response isogeny by pairings
+to check q is D-adequate.
+28
+
+Indeed, the performance of SQIsign2D2 can be further improved through op-
+timizations proposed in the literature. For example, one can optimize the pairing
+computations via biextensions [33]. Besides, the discrete logarithm computations
+can be accelerated using the tricks proposed in [24, Section 3.3]. We leave the
+optimized implementation of SQIsign2D2 as future work.
+7
+Conclusion
+In this paper, we presented two novel algorithms for eﬀiciently generating non-
+smooth isogenies, starting from the initial curve E0 and from arbitrary curves
+that are connected to E0, respectively. Leveraging these algorithms as building
+blocks, we introduced SQIsign2D2, a new variant of the SQIsign2D family. The
+implementation benefits from eﬀicient isogeny computations in dimension one,
+and thus SQIsign2D2 demonstrates superior performance in both key generation
+and signing phases compared to other existing SQIsign2D schemes.
+While SQIsign2D2 advances the state-of-the-art, further optimizations of
+its computational eﬀiciency remain critical. Especially, CompactSQIsign2D2 in-
+volves additional two-dimensional isogeny computations in the signature com-
+pression process. The development of new techniques to eliminate this compu-
+tational overhead is left as future work. As discussed in Section 6.3, it is also
+interesting to further explore how to eﬀiciently generate the commitment isogeny
+of degree approximately equal to p.
+Acknowledgment
+We thank Jintai Ding and all the anonymous reviewers for their constructive
+and valuable comments. Zheng Xu is supported by NSFC(No.12501731). Zheng
+Xu and Yi Ouyang are supported by Innovation Program for Quantum Science
+and Technology (No. 2021ZD0302902), NSFC (No. 12371013). Kaizhan Lin is
+supported by the National Key Research and Development Program of China
+(No.2022YFB2701601), Shanghai Collaborative Innovation Fund (No.XTCX-
+KJ-2023-54), Special Fund for Key Technologies in Blockchain of Shanghai Sci-
+entific and Technological Committee (No.23511100300). Chang-An Zhao is sup-
+ported by the National Natural Science Foundation of China (No. 12441107),
+Guangdong Basic and Applied Basic Research Foundation (No. 2025A1515011764),
+Guangdong Major Project of Basic and Applied Basic Research (No. 2019B030302008)
+and Guangdong Provincial Key Laboratory of Information Security Technology
+(No. 2023B1212060026).
+References
+1. Aardal, M.A., Adj, G., Aranha, D.F., Basso, A., Canales Martínez, I.A., Chávez-
+Saab, J., Corte-Real Santos, M., Dartois, P., De Feo, L., Duparc, M., Eriksen,
+J.K., Fouotsa, T.B., Gazzoni Filho, D.L., Hess, B., Kohel, D., Leroux, A., Longa,
+29
+
+P., Maino, L., Meyer, M., Nakagawa, K., Onuki, H., Panny, L., Patranabis, S.,
+Petit, C., Pope, G., Reijnders, K., Robert, D., Rodríguez-Henríquez, F., Schaef-
+fler, S., Wesolowski, B.: SQIsign. Tech. rep., National Institute of Standards and
+Technology (2025), https://sqisign.org
+2. Aardal, M.A., Basso, A., De Feo, L., Patranabis, S., Wesolowski, B.: A Complete
+Security Proof of SQIsign. In: Tauman Kalai, Y., Kamara, S.F. (eds.) Advances
+in Cryptology – CRYPTO 2025. pp. 190–222. Springer Nature Switzerland, Cham
+(2025)
+3. Azarderakhsh, R., Campagna, M., Costello, C., De Feo, L., Hess, B., Hutchinson,
+A., Jalali, A., Jao, D., Karabina, K., Koziel, B., LaMacchia, B., Longa, P., Naehrig,
+M., Pereira, G., Renes, J., Soukharev, V., Urbanik, D.: Supersingular Isogeny Key
+Encapsulation (2020), http://sike.org
+4. Azarderakhsh, R., Jao, D., Kalach, K., Koziel, B., Leonardi, C.: Key Compression
+for Isogeny-Based Cryptosystems. In: Proceedings of the 3rd ACM International
+Workshop on ASIA Public-Key Cryptography. pp. 1–10 (2016)
+5. Basso, A., Borin, G., Castryck, W., Corte-Real Santos, M., Invernizzi, R., Leroux,
+A., Maino, L., Vercauteren, F., Wesolowski, B.: PRISM: Simple and Compact
+Identification and Signatures from Large Prime Degree Isogenies. In: Jager, T.,
+Pan, J. (eds.) Public-Key Cryptography – PKC 2025. pp. 300–332. Springer Nature
+Switzerland, Cham (2025)
+6. Basso, A., Dartois, P., Feo, L.D., Leroux, A., Maino, L., Pope, G., Robert, D.,
+Wesolowski, B.: SQIsign2D–West. In: Chung, K.M., Sasaki, Y. (eds.) Advances in
+Cryptology – ASIACRYPT 2024. pp. 339–370. Springer Nature Singapore, Singa-
+pore (2025)
+7. Basso, A., Fouotsa, T.B.: New SIDH Countermeasures for a More Eﬀicient Key
+Exchange. In: Guo, J., Steinfeld, R. (eds.) Advances in Cryptology – ASIACRYPT
+2023. pp. 208–233. Springer Nature Singapore, Singapore (2023)
+8. Basso, A., Maino, L.: POKÉ: A Compact and Eﬀicient PKE from Higher-
+Dimensional Isogenies. In: Fehr, S., Fouque, P.A. (eds.) Advances in Cryptology –
+EUROCRYPT 2025. pp. 94–123. Springer Nature Switzerland, Cham (2025)
+9. Basso, A., Maino, L., Pope, G.: FESTA: Fast Encryption from Supersingular Tor-
+sion Attacks. In: Guo, J., Steinfeld, R. (eds.) Advances in Cryptology – ASI-
+ACRYPT 2023. pp. 98–126. Springer Nature Singapore, Singapore (2023)
+10. Bernstein, D.J., De Feo, L., Leroux, A., Smith, B.: Faster computation of isoge-
+nies of large prime degree. In: Galbraith, S. (ed.) ANTS-XIV - 14th Algorithmic
+Number Theory Symposium. Proceedings of the Fourteenth Algorithmic Number
+Theory Symposium (ANTS-XIV), vol. 4, pp. 39–55. Mathematical Sciences Pub-
+lishers, Auckland, New Zealand (Jun 2020). https://doi.org/10.2140/obs.2020.4.39,
+https://hal.inria.fr/hal-02514201
+11. Castryck, W., Chen, M., Invernizzi, R., Lorenzon, G., Vercauteren, F.: Break-
+ing and Repairing SQIsign2D-East. Cryptology ePrint Archive, Paper 2024/1453
+(2024), https://eprint.iacr.org/2024/1453
+12. Castryck, W., Decru, T.: An Eﬀicient Key Recovery Attack on SIDH. In: Hazay,
+C., Stam, M. (eds.) Advances in Cryptology – EUROCRYPT 2023. pp. 423–447.
+Springer Nature Switzerland, Cham (2023)
+13. Corte-Real Santos, M., Costello, C., Smith, B.: Eﬀicient (3, 3)-isogenies on fast
+Kummer surfaces. Research in Number Theory 11(1), 25 (2025)
+14. Costello, C., Jao, D., Longa, P., Naehrig, M., Renes, J., Urbanik, D.: Eﬀicient
+Compression of SIDH Public Keys. In: Coron, J.S., Nielsen, J.B. (eds.) Advances in
+Cryptology – EUROCRYPT 2017. pp. 679–706. Springer International Publishing,
+Cham (2017)
+30
+
+15. Dartois, P., Leroux, A., Robert, D., Wesolowski, B.: SQIsignHD: New Dimensions
+in Cryptography. In: Joye, M., Leander, G. (eds.) Advances in Cryptology – EU-
+ROCRYPT 2024. pp. 3–32. Springer Nature Switzerland, Cham (2024)
+16. Dartois, P., Maino, L., Pope, G., Robert, D.: An Algorithmic Approach to (2, 2)-
+Isogenies in the Theta Model and Applications to Isogeny-Based Cryptography.
+In: Chung, K.M., Sasaki, Y. (eds.) Advances in Cryptology – ASIACRYPT 2024.
+pp. 304–338. Springer Nature Singapore, Singapore (2025)
+17. De Feo, L., Kohel, D., Leroux, A., Petit, C., Wesolowski, B.: SQISign: Compact
+Post-quantum Signatures from Quaternions and Isogenies. In: Moriai, S., Wang,
+H. (eds.) Advances in Cryptology – ASIACRYPT 2020. pp. 64–93. Springer Inter-
+national Publishing, Cham (2020)
+18. De
+Feo,
+L.,
+Leroux,
+A.,
+Longa,
+P.,
+Wesolowski,
+B.:
+New
+Algorithms
+for the Deuring Correspondence: Towards Practical and Secure SQISign Signa-
+tures. In: Hazay, C., Stam, M. (eds.) Advances in Cryptology – EUROCRYPT
+2023. pp. 659–690. Springer Nature Switzerland, Cham (2023)
+19. Duparc, M., Fouotsa, T.B.: SQIPrime: A Dimension 2 Variant of SQISignHD
+with Non-smooth Challenge Isogenies. In: Chung, K.M., Sasaki, Y. (eds.) Advances
+in Cryptology – ASIACRYPT 2024. pp. 396–429. Springer Nature Singapore, Sin-
+gapore (2025)
+20. Fiat, A., Shamir, A.: How To Prove Yourself: Practical Solutions to Identifica-
+tion and Signature Problems. In: Odlyzko, A.M. (ed.) Advances in Cryptology —
+CRYPTO’ 86. pp. 186–194. Springer Berlin Heidelberg, Berlin, Heidelberg (1987)
+21. Fouotsa, T.B., Moriya, T., Petit, C.: M-SIDH and MD-SIDH: Countering SIDH
+Attacks by Masking Information. In: Hazay, C., Stam, M. (eds.) Advances in Cryp-
+tology – EUROCRYPT 2023. pp. 282–309. Springer Nature Switzerland, Cham
+(2023)
+22. Jao, D., De Feo, L.: Towards Quantum-Resistant Cryptosystems from Supersin-
+gular Elliptic Curve Isogenies. In: Yang, B.Y. (ed.) Post-Quantum Cryptography.
+pp. 19–34. Springer Berlin Heidelberg, Berlin, Heidelberg (2011)
+23. Kani, E.: The number of curves of genus two with elliptic differentials. Journal für
+die reine und angewandte Mathematik 1997(485), 93–122 (1997)
+24. Lin, K., Wang, W., Xu, Z., Zhao, C.A.: A Faster Software Implementation of
+SQIsign. IEEE Transactions on Information Theory 70(9), 6679–6689 (2024)
+25. Maino, L., Martindale, C., Panny, L., Pope, G., Wesolowski, B.: A Direct Key
+Recovery Attack on SIDH. In: Hazay, C., Stam, M. (eds.) Advances in Cryptology
+– EUROCRYPT 2023. pp. 448–471. Springer Nature Switzerland, Cham (2023)
+26. Mumford, D.: Abelian Varieties, Tata Institute of Fundamental Research Studies
+in Mathematics, vol. 5. Tata Institute of Fundamental Research (2012)
+27. Nakagawa,
+K.,
+Onuki,
+H.:
+QFESTA:
+Eﬀicient
+Algorithms
+and Parameters
+for FESTA Using Quaternion Algebras. In: Reyzin, L., Stebila, D. (eds.) Advances
+in Cryptology – CRYPTO 2024. pp. 75–106. Springer Nature Switzerland, Cham
+(2024)
+28. Nakagawa, K., Onuki, H.: SQIsign2DPush: Faster Signature Scheme Using 2-
+Dimensional Isogenies. Cryptology ePrint Archive, Paper 2025/897 (2025), https:
+//eprint.iacr.org/2025/897
+29. Nakagawa, K., Onuki, H., Castryck, W., Chen, M., Invernizzi, R., Lorenzon, G.,
+Vercauteren, F.: SQIsign2D-East: A New Signature Scheme Using 2-Dimensional
+Isogenies. In: Chung, K.M., Sasaki, Y. (eds.) Advances in Cryptology – ASI-
+ACRYPT 2024. pp. 272–303. Springer Nature Singapore, Singapore (2025)
+31
+
+30. Onuki, H., Nakagawa, K.: Ideal-to-Isogeny Algorithm Using 2-Dimensional Isoge-
+nies and Its Application to SQIsign. In: Chung, K.M., Sasaki, Y. (eds.) Advances
+in Cryptology – ASIACRYPT 2024. pp. 243–271. Springer Nature Singapore, Sin-
+gapore (2025)
+31. Page, A., Wesolowski, B.: The Supersingular Endomorphism Ring and One En-
+domorphism Problems are Equivalent. In: Joye, M., Leander, G. (eds.) Advances
+in Cryptology – EUROCRYPT 2024. pp. 388–417. Springer Nature Switzerland,
+Cham (2024)
+32. Robert, D.: Breaking SIDH in Polynomial Time. In: Hazay, C., Stam, M. (eds.) Ad-
+vances in Cryptology – EUROCRYPT 2023. pp. 472–503. Springer Nature Switzer-
+land, Cham (2023)
+33. Robert, D.: Fast pairings via biextensions and cubical arithmetic. Cryptology
+ePrint Archive, Paper 2024/517 (2024), https://eprint.iacr.org/2024/517
+34. Silverman, J.H.: The Arithmetic of Elliptic Curves, 2nd Edition. Graduate Texts
+in Mathematics. Springer (2009)
+35. Vélu, J.: Isogénies entre courbes elliptiques. C. R. Acad. Sci., Paris, Sér. A 273,
+238–241 (1971)
+36. Voight, J.: Quaternion algebras. Springer Graduate Texts in Mathematics series.
+(2021)
+32

@@ -27,6 +27,11 @@ from modules.eve_attacks import get_attack
 from modules.security_defense import SecurityAnalyzer
 from modules.visualization import QKDVisualizer
 from modules.world_map import WorldMapVisualizer
+from modules.privacy_amp_demo import (
+    PrivacyAmplificationDemo,
+    create_privacy_amp_demo_html,
+    create_info_theory_chart_data,
+)
 
 
 class QKDSimulationApp:
@@ -41,6 +46,7 @@ class QKDSimulationApp:
         self.security_analyzer = SecurityAnalyzer()
         self.visualizer = QKDVisualizer()
         self.world_map = WorldMapVisualizer()
+        self.pa_demo = PrivacyAmplificationDemo()
         
         # 当前仿真结果缓存
         self.current_results = None
@@ -353,6 +359,14 @@ class QKDSimulationApp:
             if qber >= 0.11:
                 secret_key_factor = 0
             
+            # PNS攻击特殊处理：未启用诱骗态时，系统无法检测攻击
+            # 此时系统会误以为通信安全，但实际上Eve已从多光子态获取了信息
+            # 在真实QKD中，这会导致生成的密钥在信息论上不安全
+            pns_undetected = False
+            if attack_type == 'pns' and not enable_decoy:
+                pns_undetected = True
+                secret_key_factor = 0  # 强制归零：无法保证安全
+            
             secret_rate = sifted_rate * secret_key_factor
             
             results.append({
@@ -367,7 +381,8 @@ class QKDSimulationApp:
                 'eve_info': eve_info,
                 'weather_type': weather['weather_type'],
                 'is_default_weather': weather.get('is_default', True),
-                'satellite_inclination': orbit_inclination
+                'satellite_inclination': orbit_inclination,
+                'pns_undetected': pns_undetected,
             })
         
         self.current_results = results
@@ -496,9 +511,15 @@ class QKDSimulationApp:
         visible_duration = visible_points * time_step_min  # 分钟
         
         avg_qber = np.mean([r['qber'] for r in visible_results])
+        max_qber = max([r['qber'] for r in visible_results])
+        min_qber = min([r['qber'] for r in visible_results])
         avg_secret = np.mean([r['secret_key_rate'] for r in visible_results])
         max_secret = max([r['secret_key_rate'] for r in visible_results])
         total_key = sum([r['secret_key_rate'] * time_step_min * 60 for r in visible_results])  # 比特
+        
+        # BB84安全阈值判断（硬阈值，非连续打分）
+        safe_count = sum(1 for r in visible_results if r['qber'] < 0.11)
+        safe_ratio = safe_count / len(visible_results) if visible_results else 0
         
         # 格式化可见时长
         if visible_duration >= 60:
@@ -506,12 +527,16 @@ class QKDSimulationApp:
         else:
             duration_str = f"{visible_duration:.0f}分钟"
         
+        # PNS攻击检测状态
+        pns_undetected = any(r.get('pns_undetected', False) for r in visible_results)
+        
         summary = f"""
 ## 仿真结果摘要
 
 ### 链路状态
 - **可见性**: {visible_points}/{total_points} ({visibility_ratio:.1f}%)，约{duration_str}
-- **平均QBER**: {avg_qber*100:.2f}%
+- **QBER范围**: {min_qber*100:.2f}% ~ {max_qber*100:.2f}%
+- **安全时段**: {safe_ratio*100:.1f}% ({safe_count}/{len(visible_results)} 个时间点 QBER < 11%)
 - **地面站天气**: {weather_display} ({weather_source})
 
 ### 密钥性能
@@ -523,8 +548,23 @@ class QKDSimulationApp:
 - **攻击类型**: {ATTACK_TYPES[attack_type]['name']}
 - **Eve原始信息**: {np.mean([r['eve_info'] for r in visible_results])*100:.1f}%
 - **隐私放大**: {"✅ 已启用 - Eve信息已消除" if enable_privacy_amp else "❌ 未启用"}
-- **安全等级**: {self._get_security_level(avg_qber, np.mean([r['eve_info'] for r in visible_results]), enable_privacy_amp)}
-
+- **安全等级**: {self._get_security_level(max_qber, safe_ratio, np.mean([r['eve_info'] for r in visible_results]), enable_privacy_amp)}
+"""
+        
+        # PNS攻击特殊警告
+        if pns_undetected:
+            summary += """
+> ⚠️ **PNS攻击未检测警告**
+> 
+> 当前遭受光子数分离攻击（PNS），但未启用诱骗态协议。
+> PNS攻击不引入误码，系统无法察觉窃听，会继续生成密钥。
+> 然而 Eve 已从多光子态分离出光子并保存，待基公开后可无误差读取信息。
+> **在未启用诱骗态的情况下，所有生成的密钥在信息论上均不安全。**
+> 
+> **建议**：启用诱骗态协议以检测PNS攻击，并改用GLLP保守公式计算安全密钥率。
+"""
+        
+        summary += f"""
 ### 建议
 {self._get_security_advice(avg_qber, np.mean([r['eve_info'] for r in visible_results]), enable_privacy_amp)}
 """
@@ -897,26 +937,38 @@ QBER = 基础误码 + 暗计数贡献
                 'attenuation_db_per_km': 0.2, 'is_default': True
             }
     
-    def _get_security_level(self, qber: float, eve_info: float, privacy_amp: bool) -> str:
+    def _get_security_level(self, max_qber: float, safe_ratio: float,
+                              eve_info: float, privacy_amp: bool) -> str:
         """
-        计算安全等级
-        综合考虑QBER、Eve信息和隐私放大状态
-        """
-        # QBER过高，直接判定为低
-        if qber >= 0.11:
-            return "🔴 低 (QBER超过安全阈值)"
+        计算安全等级（基于BB84硬阈值）
         
-        # 有Eve攻击且未启用隐私放大
+        BB84协议的安全判定是二元的：每个时刻独立判断。
+        - QBER < 11% → 该时刻可提取安全密钥
+        - QBER >= 11% → 该时刻完全不可行（不是"分数低"，而是直接归零）
+        
+        因此安全等级应基于：
+        1. 是否有任何时刻超过阈值（max_qber）
+        2. 安全时间占比（safe_ratio）
+        
+        不应使用平均值做连续打分。
+        """
+        # 全程不安全
+        if safe_ratio <= 0:
+            return "🔴 低 (全程QBER超限，无法提取密钥)"
+        
+        # 部分时刻不安全
+        if max_qber >= 0.11:
+            if eve_info > 0 and not privacy_amp:
+                return f"🟡 中 (仅{safe_ratio*100:.0f}%时间安全，且受攻击未防御)"
+            return f"🟡 中 (仅{safe_ratio*100:.0f}%时间QBER<11%)"
+        
+        # 全程QBER安全，再检查Eve信息
         if eve_info > 0.15 and not privacy_amp:
-            return "🔴 低 (受到攻击但未启用防御)"
-        if eve_info > 0.05 and not privacy_amp:
+            return "🟡 中 (受到攻击但未启用防御)"
+        if eve_info > 0 and not privacy_amp:
             return "🟡 中 (建议启用隐私放大)"
         
-        # 基于QBER判断
-        if qber < 0.05:
-            return "🟢 高"
-        else:
-            return "🟡 中"
+        return "🟢 高 (全程安全)"
     
     def _get_security_advice(self, qber: float, eve_info: float, privacy_amp: bool) -> str:
         """生成安全建议"""
@@ -989,6 +1041,58 @@ QBER = 基础误码 + 暗计数贡献
             step += 1
         
         return timeline
+    
+    def run_privacy_amp_demo(self, qber_percent: float, eve_percent: float, 
+                             n_bits: int, seed: int):
+        """
+        运行隐私放大原理演示
+        
+        Args:
+            qber_percent: QBER百分比
+            eve_percent: Eve信息百分比
+            n_bits: 密钥位数
+            seed: 随机种子（0表示随机）
+            
+        Returns:
+            (html, plotly_figure)
+        """
+        actual_seed = None if seed == 0 else seed
+        
+        # 生成HTML展示
+        html = create_privacy_amp_demo_html(
+            qber_percent=qber_percent,
+            eve_percent=eve_percent,
+            n_bits=n_bits,
+            seed=actual_seed
+        )
+        
+        # 生成信息论对比图
+        chart_data = create_info_theory_chart_data(
+            qber_percent=qber_percent,
+            eve_percent=eve_percent,
+            n_bits=n_bits,
+            seed=actual_seed
+        )
+        
+        # 创建Plotly图表
+        import plotly.graph_objects as go
+        fig = go.Figure()
+        fig.add_trace(go.Bar(
+            x=chart_data['categories'],
+            y=chart_data['values'],
+            marker_color=chart_data['colors'],
+            text=chart_data['values'],
+            textposition='auto',
+        ))
+        fig.update_layout(
+            title=f'密钥信息分布图 (效率: {chart_data["efficiency"]*100:.1f}%)',
+            xaxis_title='',
+            yaxis_title='比特数',
+            template='plotly_white',
+            height=400,
+        )
+        
+        return html, fig
     
     def create_interface(self):
         """创建Gradio界面"""
@@ -1144,6 +1248,52 @@ QBER = 基础误码 + 暗计数贡献
             - Decoy-State QKD (Wang 2005, Lo 2005)
             - 星地量子通信综述
             """)
+            
+            # 隐私放大原理演示Tab
+            with gr.Tab("🔐 隐私放大原理"):
+                gr.Markdown("""
+                ## 隐私放大的信息论本质
+                
+                隐私放大（Privacy Amplification）是量子密钥分发的核心后处理步骤之一。
+                即使 Eve 通过光束分离等攻击获取了部分信息，通信双方仍可通过**压缩密钥长度**，
+                使 Eve 对最终密钥的信息量趋近于零。
+                
+                > **核心思想**：利用通用哈希函数将长串映射为短串，使得 Eve 的信息在压缩后不足以确定任何一位密钥。
+                > 这类似于将"部分信息"通过压缩变为"无信息"。
+                """)
+                
+                with gr.Row():
+                    with gr.Column(scale=1):
+                        gr.Markdown("### 参数设置")
+                        pa_qber = gr.Slider(
+                            minimum=0, maximum=20, value=3, step=0.5,
+                            label="量子误码率 QBER (%)"
+                        )
+                        pa_eve = gr.Slider(
+                            minimum=0, maximum=50, value=10, step=1,
+                            label="Eve 信息比例 (%)"
+                        )
+                        pa_bits = gr.Slider(
+                            minimum=16, maximum=64, value=32, step=8,
+                            label="展示密钥位数"
+                        )
+                        pa_seed = gr.Number(
+                            value=42, label="随机种子（0=随机）", precision=0
+                        )
+                        pa_btn = gr.Button("🔄 生成演示", variant="primary")
+                    
+                    with gr.Column(scale=2):
+                        pa_html = gr.HTML(label="密钥可视化")
+                
+                with gr.Row():
+                    pa_chart = gr.Plot(label="信息论分析")
+                
+                # 绑定事件
+                pa_btn.click(
+                    fn=self.run_privacy_amp_demo,
+                    inputs=[pa_qber, pa_eve, pa_bits, pa_seed],
+                    outputs=[pa_html, pa_chart]
+                )
         
         return interface
 
