@@ -1,0 +1,266 @@
+\documentclass[12pt,a4paper]{ctexart}
+
+% ===== 页面设置 =====
+\usepackage{geometry}
+\geometry{left=2.8cm,right=2.8cm,top=2.8cm,bottom=2.8cm}
+
+% ===== 数学与符号 =====
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{mathtools}
+
+% ===== 表格 =====
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{multirow}
+
+% ===== 列表 =====
+\usepackage{enumitem}
+\setlist{nosep,leftmargin=1.8em}
+
+% ===== 颜色与链接 =====
+\usepackage{xcolor}
+\definecolor{mainblue}{RGB}{45, 95, 145}
+\definecolor{lightbg}{RGB}{248, 249, 250}
+\definecolor{accent}{RGB}{70, 130, 180}
+\definecolor{textgray}{RGB}{80, 80, 80}
+
+\usepackage{hyperref}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=mainblue,
+    citecolor=mainblue,
+    urlcolor=mainblue,
+    pdfauthor={PB24000153 李智涵},
+    pdftitle={SQIsign2D^2 论文阅读报告}
+}
+
+% ===== 盒子与装饰 =====
+\usepackage{tcolorbox}
+\tcbuselibrary{skins,breakable}
+
+\newtcolorbox{infobox}[1][]{
+    enhanced,
+    colback=lightbg,
+    colframe=mainblue!60,
+    arc=2pt,
+    boxrule=0.8pt,
+    left=10pt,right=10pt,top=8pt,bottom=8pt,
+    fonttitle=\bfseries\color{mainblue},
+    title={#1},
+    breakable
+}
+
+\newtcolorbox{thinkbox}{
+    enhanced,
+    colback=mainblue!5,
+    colframe=mainblue!40,
+    arc=2pt,
+    boxrule=0.6pt,
+    left=10pt,right=10pt,top=6pt,bottom=6pt,
+    breakable
+}
+
+% ===== 页眉页脚 =====
+\usepackage{fancyhdr}
+\setlength{\headheight}{26pt}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[C]{\small\color{textgray} 密码学导论 · 论文阅读报告}
+\fancyfoot[C]{\small\color{textgray} — \thepage{} —}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0pt}
+\renewcommand{\headrule}{\hbox to\headwidth{\color{mainblue!30}\leaders\hrule height \headrulewidth\hfill}}
+
+% ===== 标题格式 =====
+\usepackage{titlesec}
+\titleformat{\section}
+    {\Large\bfseries\color{mainblue}}
+    {\thesection}{0.8em}{}
+    [\vspace{-0.5em}\textcolor{mainblue!40}{\rule{\linewidth}{0.5pt}}]
+
+\titleformat{\subsection}
+    {\large\bfseries\color{mainblue!90}}
+    {\thesubsection}{0.6em}{}
+
+\titleformat{\subsubsection}
+    {\normalsize\bfseries\color{mainblue!80}}
+    {\thesubsubsection}{0.5em}{}
+
+\titlespacing*{\section}{0pt}{1.8em}{0.8em}
+\titlespacing*{\subsection}{0pt}{1.2em}{0.5em}
+\titlespacing*{\subsubsection}{0pt}{0.8em}{0.3em}
+
+% ===== 段落设置 =====
+\setlength{\parindent}{2em}
+\setlength{\parskip}{0.4em}
+\linespread{1.35}
+
+% ===== 文档信息 =====
+\title{\vspace{-1em}\textbf{\LARGE 论文阅读报告}\\[0.4em]
+\large SQIsign2D\textsuperscript{2}：基于一维光滑同源的签名方案优化}
+\author{PB24000153\quad 李智涵}
+\date{}
+
+\begin{document}
+
+\maketitle
+\thispagestyle{empty}
+
+% ===== 论文信息框 =====
+\begin{infobox}[论文信息]
+\begin{itemize}[leftmargin=1.5em,topsep=2pt]
+    \item \textbf{标题：}SQIsign2D\textsuperscript{2}: New SQIsign2D Variant by Leveraging Power Smooth Isogenies in Dimension One
+    \item \textbf{作者：}Zheng Xu, Kaizhan Lin, Chang-An Zhao, Yi Ouyang
+    \item \textbf{发表：}ASIACRYPT 2025, Part IV, LNCS, pp.~341--371
+    \item \textbf{预印本：}IACR Cryptology ePrint Archive, Report 2025/920
+    \item \textbf{课程：}密码学导论
+\end{itemize}
+\end{infobox}
+
+\vspace{0.5em}
+\begin{tcolorbox}[enhanced,colback=mainblue!3,colframe=mainblue!20,arc=2pt,boxrule=0.4pt,left=8pt,right=8pt,top=6pt,bottom=6pt]
+\textbf{【摘要】}本文介绍并评析了 SQIsign2D\textsuperscript{2} 这一同源密码学领域的最新签名方案。该方案通过重构素数参数（$p = 2^{e_2} \cdot 3^{e_3} - 1$）和重新设计核心算法，在保持 NIST-I 安全级别的前提下，将 SQIsign2D-East 的签名速度提升了约 2 倍。报告围绕\textbf{研究目标、技术贡献与个人思考}三个维度展开，力求在准确传达论文内容的同时，给出具有一定深度的独立见解。
+\end{tcolorbox}
+
+% ===== 第一部分：主要内容介绍 =====
+\section{论文主要内容介绍}
+
+\subsection{研究背景与动机}
+
+2024 年 8 月，NIST 正式发布首批后量子密码标准，宣告密码学正式进入后量子时代。在几条主流技术路线中，\textbf{基于同源的密码学}（Isogeny-based Cryptography）始终是个\textbf{小众但硬核}的存在——它的数学根基深、签名长度极短，但计算效率一直是个让人头疼的问题。
+
+SQIsign 是目前唯一闯入 NIST 第二轮评估的同源签名方案，签名只有约 200 字节，和传统的 ECC 差不多。但代价也很明显：签名和验证过程要做大量理想—同源的转换，算起来相当慢。为了解决这个问题，学界近几年陆续推出了 SQIsignHD、SQIsign2D-West/East 等改进版本，而本文的 SQIsign2D\textsuperscript{2} 则是在这一脉络上的最新尝试。
+
+\subsection{研究目标}
+
+用一句话概括，这篇论文的目标是：\textbf{在不牺牲安全性的前提下，尽可能把 SQIsign2D 家族的计算效率拉满。}具体来说，作者希望解决两个核心问题：
+\begin{itemize}
+    \item \textbf{二维同源计算开销大：}现有方案严重依赖高维（二维）同源，而这类计算在同源密码学里属于计算上的主要瓶颈。
+    \item \textbf{参数设计不够灵活：}传统参数只利用 2 的幂次挠子群，没有充分挖掘其他光滑因子的潜力。
+\end{itemize}
+
+\subsection{主要贡献}
+
+作者给出的解决方案可以概括为\textbf{降维优化}——用更多的一维光滑同源计算，去替换昂贵的二维同源计算。具体有三项核心贡献。
+
+\subsubsection{素数参数重构：从\textbf{只用 2}到\textbf{2 和 3 搭配}}
+
+传统方案多用形如 $p = f \cdot 2^a - 1$ 的素数，只方便用 2 的幂次挠点。SQIsign2D\textsuperscript{2} 改用：
+\begin{equation}
+p = 2^{e_2} \cdot 3^{e_3} - 1
+\end{equation}
+其中 $3^{e_3} \approx 2^{e_2} \approx \sqrt{p}$。这个改动的妙处在于：
+\begin{itemize}
+    \item $E_0[C]$ 和 $E_0[D]$ 都是有理挠子群，可以直接在基域上操作；
+    \item $C$-同源和 $D$-同源都可以用 V\'{e}lu 公式高效计算，而且都是一维的；
+    \item 二维同源的度数需求从 $\sim p$ 降到了 $\sim \sqrt{p}$，计算量大幅减少。
+\end{itemize}
+
+\subsubsection{ImRanIso 与 GenImRanIso：两个新算法}
+
+\textbf{ImRanIso} 用于密钥生成。它的思路是先构造一个特殊度数的内自同态，再通过二维同源分解得到目标同源。关键技巧是引入 $CD'$-同源（$D' \approx p^{1/4}$），把二维同源的复杂度从 $\sim \log_2 p$ 压到 $\sim \frac{1}{2}\log_2 p$，代价只是多算一些一维同源，整体收益相当明显。
+
+\textbf{GenImRanIso} 用于签名阶段。此时的困难在于从曲线 $E_A$ 出发时，其自同态环未知。作者用 \textbf{Eichler 序}代替完整的最大序来构造所需内自同态，完全避开了 East 方案中昂贵的 $(2^e, 2^e)$-二维同源，转而使用更易算的 $(D, D)$-二维同源。
+
+\subsubsection{响应条件简化与性能提升}
+
+East 方案要求响应同源的度数满足复杂的 $(2^a, 2^b)$-nice 条件，采样成功率只有约 $1/8$。本文将其简化为D-adequate——只需 $q$ 为奇数、$q < D$ 且 $3 \nmid q$——成功率翻倍到约 $1/4$。
+
+最终效果相当亮眼。在 NIST-I 安全级别下，与 SQIsign2D-East 的对比如表~\ref{tab:perf} 所示。
+
+\begin{table}[htbp]
+\centering
+\caption{性能对比（NIST-I 安全级别）}
+\label{tab:perf}
+\begin{tabular}{@{}cccc@{}}
+\toprule
+操作阶段 & SQIsign2D-East & SQIsign2D\textsuperscript{2}（本文） & 加速比 \\
+\midrule
+密钥生成 & 560 ms & 213 ms & 2.6$\times$ \\
+签名 & 1263 ms & 587 ms & 2.1$\times$ \\
+验证 & 296 ms & 247 ms & 1.2$\times$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{协议流程概览}
+
+SQIsign2D\textsuperscript{2} 本质上是一个 $\Sigma$-协议，可以通过 Fiat--Shamir 变换变成数字签名。以 NIST-I 级别为例，参数取 $p = 2^{131} \cdot 3^{78} - 1$（约 256 比特），公钥约 64 字节，签名约 154 字节。
+
+协议遵循经典的三步结构：
+\begin{itemize}
+    \item \textbf{承诺：}证明者用 ImRanIso 生成随机同源 $\psi: E_0 \to E_1$，发送承诺曲线 $E_1$。
+    \item \textbf{挑战：}验证者发送随机点 $K_{\text{cha}} \in E_1[C]$。
+    \item \textbf{响应：}证明者计算挑战同源和响应同源 $\sigma: E_A \to E_2$，利用 GenImRanIso 生成辅助信息，返回压缩后的响应。
+\end{itemize}
+
+验证方则通过计算 $(D, D)$-二维同源来检查响应的有效性。整个过程安全性基于超奇异同源问题的困难性，在随机预言机模型下满足特殊可靠性和特殊诚实验证者零知识性。
+
+\subsection{安全性考量}
+
+作者没有回避安全性上的取舍。ImRanIso 输出的承诺曲线与随机超奇异曲线的不可区分性目前还是一个\textbf{启发式假设}，缺乏严格证明。为此论文给出了两种强化方案：
+\begin{itemize}
+    \item \textbf{Double Path：}把承诺同源度数提升到 $\sim p$，增强随机性；
+    \item \textbf{$(3,3)$-同源适配：}直接计算 $(CD, CD)$-二维同源。
+\end{itemize}
+
+不过这些强化会带来额外开销，作者把它们作为可选方案而非默认配置，算是一种务实的折中。
+
+% ===== 第二部分：进一步思考 =====
+\section{对论文内容的进一步思考}
+
+\subsection{为什么这篇工作值得关注？}
+
+在我看来，SQIsign2D\textsuperscript{2} 的价值不仅在于速度提升，更在于它展示了一种非常清晰的优化方法论：\textbf{找到真正的瓶颈，然后用数学结构的重新设计去绕过它。}
+
+很多人做密码学实现优化时，第一反应是写更高效的代码、用更快的库、或者上 GPU。这些当然有用，但只能带来局部改进。本文作者则从更底层入手——通过改变素数的代数结构，从根本上降低了问题的计算复杂度。这种从参数结构出发的设计思路在同源密码学里并不常见，效果却非常明显：密钥生成阶段的 $(2,2)$-同源步数从 253 步降到 66 步，签名阶段从 641 步降到 262 步。这不是代码层面的微优化，而是算法层面的质变。
+
+\subsection{关于\textbf{量子安全}的一点个人理解}
+
+作为量子信息专业的学生，我对同源密码的量子安全性一直比较好奇。Shor 算法能破 RSA 和 ECC，是因为它们的安全基础是\textbf{阿贝尔群上的隐藏子群问题}（HSP），而量子傅里叶变换恰好擅长处理这类结构。但超奇异同源问题背后的代数结构是\textbf{非阿贝尔的}——四元数代数的理想类群——截至目前，人们还没找到能有效利用量子加速的算法。
+
+本文的策略在我看来有一个隐含的\textbf{量子安全优势}：它把更多计算转移到了一维光滑同源上（V\'{e}lu 公式），而一维同源的经典计算已经非常高效，量子算法在此并没有明显优势；同时，二维同源即使对量子计算机也仍然是难题。所以\textbf{降维}不仅加速了经典计算，也没有引入新的量子攻击面。这种\textbf{经典高效 + 量子安全}的双重收益，在同源密码的设计中是比较难得的。
+
+\subsection{论文的不足之处}
+
+当然，这篇论文也并非尽善尽美。我觉得可以指出两点：
+
+第一，\textbf{启发式假设仍是一个尚未解决的关键问题。}承诺生成的随机性不可区分性是整个零知识性的根基，但目前只有实验证据，没有归约证明。虽然作者给出了强化方案，但正如他们自己指出的，这些方案会带来性能回退。如何在\textbf{严格可证}和\textbf{实际高效}之间取得更好平衡，可能是后续工作的重要方向。
+
+第二，\textbf{绝对速度仍然不够快。}即便优化到了 587 ms，和 NIST 标准化的 ML-DSA（不到 1 ms）相比仍然慢了整整两个数量级。虽然签名长度上 SQIsign2D\textsuperscript{2} 有着压倒性优势（154 B vs 2420 B），属于典型的\textbf{时间换空间}，但对于延迟敏感的场景（比如高频握手、物联网设备），近半秒的签名时间依然是个不小的门槛。也许未来的硬件加速（GPU/FPGA）或者进一步的算法改进能弥补这个差距。
+
+\subsection{一些延伸思考}
+
+读完后我产生了几个后续问题，或许值得思考：
+
+\begin{thinkbox}
+\begin{itemize}
+    \item \textbf{混合方案的可能性：}同源签名短小精悍，格签名快速高效，有没有可能设计一种混合协议，让两者互补？比如在 TLS 握手时，用格方案做会话密钥协商（快），用同源方案做长期身份签名（短）。
+    \item \textbf{其他光滑因子的探索：}本文用的是 2 和 3，那 5、7 或其他小素数呢？如果允许更多光滑因子参与，是否能在更高安全级别下保持类似的加速效果？这涉及素数分布和挠子群结构的深层数论问题。
+    \item \textbf{形式化验证与侧信道安全：}密码学实现中的侧信道攻击（如时间攻击、缓存攻击）在 SQIsign 家族中讨论得还不够多。考虑到同源计算涉及大量条件分支和不同长度的同源链，如何给出形式化的常数时间实现保证，是走向实际部署前必须解决的问题。
+\end{itemize}
+\end{thinkbox}
+
+% ===== 结语 =====
+\section{结语}
+
+SQIsign2D\textsuperscript{2} 是一篇目标明确、技术扎实的工作。它通过\textbf{参数重构 + 算法重设计}的组合拳，把 SQIsign2D 的效率推向了新的高度，同时也为同源密码学的优化提供了一条可复制的路径：与其在高维计算里死磕，不如回头审视参数本身有没有被充分利用。
+
+对我个人而言，这篇论文最大的启示是：\textbf{量子安全不等于量子低效。}通过精细的数学设计和算法工程，我们完全有可能在保持抗量子安全性的同时，做出足够实用的密码方案。后量子密码学的舞台还很大，同源密码虽然暂时没进 NIST 首批标准，但它独特的\textbf{短签名}优势决定了它在某些场景下仍有不可替代的价值。期待未来几年能看到更多类似的工作，把这条技术路线打磨得更加成熟。
+
+% ===== 参考文献 =====
+\section*{参考文献}
+\addcontentsline{toc}{section}{参考文献}
+
+\begin{enumerate}[label={[\arabic*]},leftmargin=2.5em,itemsep=0.2em]
+    \item NIST. Post-Quantum Cryptography Standardization. 2024.
+    \item De Feo L, et al. SQIsign: Compact Post-Quantum Signatures from Quaternions and Isogenies. ASIACRYPT 2020.
+    \item Dartois P, et al. SQIsignHD: New Dimensions in Cryptography. EUROCRYPT 2024.
+    \item Nakagawa K, et al. SQIsign2D-East: A New Signature Scheme Using 2-Dim Isogenies. ASIACRYPT 2024.
+    \item Xu Z, Lin K, Zhao C A, Ouyang Y. SQIsign2D\textsuperscript{2}: New SQIsign2D Variant by Leveraging Power Smooth Isogenies in Dimension One. ASIACRYPT 2025.
+    \item Castryck W, et al. Breaking and Repairing SQIsign2D-East. ePrint 2024/1453.
+    \item Kani E. The number of curves of genus two with elliptic differentials. J.~Reine Angew. Math. 1997.
+\end{enumerate}
+
+\vspace{1em}
+\end{document}
